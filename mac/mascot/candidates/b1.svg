@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Caddiy B1: a soft blob inside its amber scan ring -->
+  <!-- 1. scan ring (behind) -->
+  <circle cx="256" cy="256" r="208" fill="none" stroke="#F6B23C" stroke-width="48"/>
+  <!-- 2. blob body: a squashed circle that sits on the ring -->
+  <rect x="96" y="166" width="320" height="284" rx="142" fill="#D8F1EE" stroke="#1F7A72" stroke-width="16"/>
+  <!-- 3, 4. eyes -->
+  <circle cx="206" cy="282" r="34" fill="#1F7A72"/>
+  <circle cx="306" cy="282" r="34" fill="#1F7A72"/>
+  <!-- 5. smile arc -->
+  <path d="M226 352 Q256 380 286 352" fill="none" stroke="#1F7A72" stroke-width="16" stroke-linecap="round"/>
+  <!-- 6. sprout dot on top (the probe tip) -->
+  <circle cx="256" cy="126" r="38" fill="#F6B23C" stroke="#1F7A72" stroke-width="16"/>
+</svg>

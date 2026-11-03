@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <g stroke="#1F7A72" stroke-width="18" stroke-linejoin="round" stroke-linecap="round" transform="translate(0 -16)">
+    <!-- 1 top face -->
+    <polygon points="96,176 160,112 416,112 352,176" fill="#FFFFFF"/>
+    <!-- 2 side face -->
+    <polygon points="352,176 416,112 416,368 352,432" fill="#A9DDD7"/>
+    <!-- 3 front face -->
+    <rect x="96" y="176" width="256" height="256" fill="#D8F1EE"/>
+    <!-- 4, 5 eyes -->
+    <circle cx="172" cy="280" r="30" fill="#1F7A72" stroke="none"/>
+    <circle cx="276" cy="280" r="30" fill="#1F7A72" stroke="none"/>
+    <!-- 6 smile -->
+    <path d="M194 348 Q224 376 254 348" fill="none"/>
+  </g>
+</svg>

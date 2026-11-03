@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<g transform="translate(244 290) scale(1.06) translate(-256 -290)">
+  <!-- pointing: stubby arm out to the right, part of the body outline -->
+  <path fill="#A9DDD7" stroke="#6BB0AA" stroke-width="14" stroke-linejoin="round" stroke-linecap="round"
+    d="M220 164 C220 92 292 92 292 164 C384 170 440 242 440 324 C464 310 500 316 500 342 C500 370 462 378 436 368 C422 426 360 448 256 448 C142 448 72 414 72 332 C72 242 128 170 220 164 Z
+       M276 156 C276 116 236 116 236 156 Z"/>
+  <circle cx="180" cy="316" r="38" fill="#1F7A72"/>
+  <circle cx="344" cy="316" r="38" fill="#1F7A72"/>
+  <circle cx="167" cy="301" r="13" fill="#FFFFFF"/>
+  <circle cx="357" cy="301" r="13" fill="#FFFFFF"/>
+  <circle cx="140" cy="370" r="27" fill="#F4A6A0" opacity="0.7"/>
+  <circle cx="372" cy="370" r="27" fill="#F4A6A0" opacity="0.7"/>
+  <path d="M226 350 A30 30 0 0 0 286 350 Z" fill="#1F7A72" stroke="#1F7A72" stroke-width="8" stroke-linejoin="round"/>
+</g>
+</svg>

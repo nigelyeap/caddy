@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Caddiy B2: a cube-shaped robot cat -->
+  <!-- 1, 2. triangle ears (behind the head) -->
+  <path d="M96 250 L112 40 L270 168 Z" fill="#F6B23C" stroke="#1F7A72" stroke-width="16" stroke-linejoin="round"/>
+  <path d="M416 250 L400 40 L242 168 Z" fill="#F6B23C" stroke="#1F7A72" stroke-width="16" stroke-linejoin="round"/>
+  <!-- 3. cube head and body in one rounded square -->
+  <rect x="86" y="136" width="340" height="300" rx="72" fill="#FFFFFF" stroke="#1F7A72" stroke-width="16"/>
+  <!-- 4, 5. eyes -->
+  <circle cx="196" cy="276" r="38" fill="#1F7A72"/>
+  <circle cx="316" cy="276" r="38" fill="#1F7A72"/>
+  <!-- 6. smile arc -->
+  <path d="M226 356 Q256 384 286 356" fill="none" stroke="#1F7A72" stroke-width="16" stroke-linecap="round"/>
+</svg>

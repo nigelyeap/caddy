@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <g stroke="#1F7A72" stroke-width="18" stroke-linecap="round">
+    <!-- 1 body: a soft box -->
+    <rect x="112" y="168" width="288" height="288" rx="56" fill="#D8F1EE"/>
+    <!-- 2 scan-ring halo -->
+    <ellipse cx="256" cy="96" rx="120" ry="36" fill="none" stroke="#F6B23C" stroke-width="28"/>
+    <!-- 3, 4 eyes -->
+    <circle cx="200" cy="300" r="34" fill="#1F7A72" stroke="none"/>
+    <circle cx="312" cy="300" r="34" fill="#1F7A72" stroke="none"/>
+    <!-- 5 smile -->
+    <path d="M222 376 Q256 406 290 376" fill="none"/>
+  </g>
+</svg>

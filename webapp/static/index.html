@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>CAD Training</title>
+<link rel="stylesheet" href="style.css">
+<script>
+  // Set the theme before first paint so there is no flash.
+  try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<header class="top">
+  <h1>CAD Training</h1>
+  <ol class="steps" aria-label="Steps">
+    <li data-step="scan"><span class="num">1</span> Scan</li>
+    <li data-step="process"><span class="num">2</span> Clean up</li>
+    <li data-step="edit"><span class="num">3</span> Change and print</li>
+  </ol>
+  <button id="btn-theme" class="ghost small" type="button" aria-label="Switch light or dark">Dark</button>
+</header>
+
+<div id="banner" class="banner" role="alert" hidden></div>
+
+<main>
+  <!-- Step 1: scan -->
+  <section id="scan" class="screen" aria-labelledby="scan-title" hidden>
+    <h2 id="scan-title" class="sr-only">Scan</h2>
+    <div class="camera" id="camera">
+      <video id="video" autoplay muted playsinline></video>
+
+      <div class="overlay" aria-live="polite">
+        <div class="chips">
+          <span id="chip-speed" class="chip">Speed</span>
+          <span id="chip-light" class="chip">Light</span>
+          <span id="chip-focus" class="chip">Focus</span>
+        </div>
+        <div class="ring-wrap">
+          <svg id="ring" viewBox="-110 -110 220 220" role="img" aria-label="How much of the object you have scanned"></svg>
+          <div id="coverage-pct" class="pct">0%</div>
+        </div>
+        <div id="rec" class="rec" hidden><span class="dot"></span> <span id="rec-time">0:00</span></div>
+        <p id="warning" class="warning" hidden></p>
+      </div>
+
+      <div id="coach" class="coach">
+        <p class="coach-title">Get ready to scan</p>
+        <ol>
+          <li>Put the object in the middle of a table.</li>
+          <li>Press <b>Start scan</b>.</li>
+          <li>Walk slowly all the way around it. Fill the ring.</li>
+        </ol>
+        <p id="coach-wait" class="coach-wait" hidden>Waiting for the camera. If the browser asks, click Allow.</p>
+      </div>
+
+      <div id="camera-msg" class="camera-msg" hidden>
+        <p id="camera-msg-title" class="coach-title"></p>
+        <p id="camera-msg-text"></p>
+        <button id="btn-camera-retry" type="button">Try the camera again</button>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="btn-start" class="primary big" type="button">Start scan</button>
+      <button id="btn-stop" class="primary big stop" type="button" hidden>Finish scan</button>
+      <button id="btn-sample" type="button">Use a sample model</button>
+      <label class="button" for="file-input">Open a scan file</label>
+      <input id="file-input" type="file" accept=".stl,.ply,.obj,video/*" class="sr-only">
+    </div>
+    <p class="hint">The ring turns green as you go around. Orange means do that side again. <span class="kbd-hint">Press Space to start or finish.</span></p>
+    <p id="engine-note" class="note" hidden>Practice mode: the ring fills on a timer. Light and focus checks are real.</p>
+  </section>
+
+  <!-- Step 2: clean up -->
+  <section id="process" class="screen center" aria-labelledby="process-title" hidden>
+    <div id="process-busy">
+      <div class="spinner" aria-hidden="true"></div>
+      <h2 id="process-title">Making your 3D shape</h2>
+      <ol class="stages" aria-live="polite">
+        <li id="stage-upload">Sending the video <span id="upload-pct" class="num-tab"></span></li>
+        <li id="stage-build">Building the shape</li>
+        <li id="stage-ready">Ready to change</li>
+      </ol>
+      <p class="hint">Time so far: <span id="elapsed" class="num-tab">0</span> s</p>
+      <p id="slow-msg" class="note" hidden>This is taking longer than usual. You can keep waiting or go back.</p>
+    </div>
+    <div id="process-fail" hidden>
+      <h2>That scan did not work</h2>
+      <p id="process-error" class="lead"></p>
+      <details class="teacher"><summary>Details for the teacher</summary><pre id="process-detail"></pre></details>
+    </div>
+    <div class="actions center-row">
+      <button id="btn-retry" type="button" hidden>Back to scan</button>
+      <button id="btn-retry-sample" type="button" hidden>Use a sample model</button>
+    </div>
+  </section>
+
+  <!-- Step 3: change and print -->
+  <section id="edit" class="screen" aria-labelledby="edit-title" hidden>
+    <h2 id="edit-title" class="sr-only">Change and print</h2>
+    <div class="edit-layout">
+      <div class="viewer-wrap">
+        <div id="viewer" class="viewer" tabindex="0" aria-label="3D model. Drag to turn it."></div>
+        <span id="badge-sample" class="badge" hidden>Sample cup</span>
+        <span id="size" class="size num-tab"></span>
+        <button id="btn-reset-view" class="small viewer-btn" type="button">Reset view</button>
+        <p class="viewer-hint">Drag to turn. Pinch or scroll to zoom.</p>
+        <div id="viewer-busy" class="viewer-busy" hidden>
+          <div class="spinner" aria-hidden="true"></div>
+          <p>Claude is writing the change. <span id="edit-elapsed" class="num-tab">0</span> s</p>
+        </div>
+        <p id="viewer-msg" class="viewer-msg" hidden></p>
+      </div>
+
+      <aside class="panel">
+        <form id="edit-form">
+          <label for="instruction">What do you want to change?</label>
+          <textarea id="instruction" rows="2" placeholder="Make it 20 percent taller" enterkeyhint="send"></textarea>
+          <button class="primary big wide" type="submit" id="btn-edit">Make the change</button>
+        </form>
+        <p class="sub">Or tap an idea:</p>
+        <div id="ideas" class="ideas"></div>
+        <details class="more-ideas">
+          <summary>More ideas: ears, lids, patterns</summary>
+          <div id="more-ideas" class="ideas"></div>
+        </details>
+        <div id="edit-msg" class="msg" role="status" hidden></div>
+
+        <div class="history-head">
+          <h3>Changes</h3>
+          <div class="row">
+            <button id="btn-undo" class="small" type="button" aria-keyshortcuts="Meta+Z Control+Z">Undo</button>
+            <button id="btn-redo" class="small" type="button" aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z">Redo</button>
+          </div>
+        </div>
+        <ol id="history" class="history"></ol>
+
+        <a id="btn-download" class="button primary big wide" href="/api/model.stl" download="model.stl">Download STL</a>
+        <details>
+          <summary>How to open the STL</summary>
+          <p><b>Tinkercad:</b> go to tinkercad.com, open a design, click Import and pick model.stl.</p>
+          <p><b>FreeCAD:</b> choose File, then Import, and pick model.stl. Use the Mesh Design workbench to view it.</p>
+        </details>
+        <button id="btn-new" class="ghost wide" type="button">Scan something new</button>
+      </aside>
+    </div>
+  </section>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

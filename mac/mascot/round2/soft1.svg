@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<g transform="translate(256 282) scale(1.12) translate(-256 -282)">
+  <!-- 1 body: pillow cube, carry handle on top, soft seam = cube top face -->
+  <path fill="#D8F1EE" stroke="#86C9C1" stroke-width="16" stroke-linejoin="round" stroke-linecap="round"
+    d="M196 164 A60 60 0 0 1 316 164 C388 168 430 208 430 302 C430 402 390 450 300 450 C270 454 242 454 212 450 C122 450 82 402 82 302 C82 208 124 168 196 164 Z
+       M290 166 A34 34 0 0 0 222 166 Z
+       M398 220 Q256 274 114 220"/>
+  <!-- 2,3 eyes -->
+  <circle cx="178" cy="326" r="36" fill="#1F7A72"/>
+  <circle cx="334" cy="326" r="36" fill="#1F7A72"/>
+  <!-- 4,5 sparkles, upper outer -->
+  <circle cx="166" cy="312" r="12" fill="#FFFFFF"/>
+  <circle cx="346" cy="312" r="12" fill="#FFFFFF"/>
+  <!-- 6,7 cheeks -->
+  <circle cx="150" cy="388" r="26" fill="#F4A6A0" opacity="0.7"/>
+  <circle cx="362" cy="388" r="26" fill="#F4A6A0" opacity="0.7"/>
+  <!-- 8 mouth: wide U -->
+  <path d="M216 370 Q256 414 296 370" fill="none" stroke="#1F7A72" stroke-width="14" stroke-linecap="round"/>
+</g>
+</svg>
