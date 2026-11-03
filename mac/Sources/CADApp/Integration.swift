@@ -3,6 +3,7 @@ import CADShared
 import CADBackend
 import CADScan
 import CADViewer
+import CADGesture
 
 // The one place where the app meets the other targets.
 
@@ -35,6 +36,18 @@ struct ScanStep: View {
 // MARK: Viewer
 
 typealias ViewerControl = ViewerController
+/// Look, Move or Cut on the stage.
+typealias PartTool = ViewerController.Tool
+/// Where one part file sits on the stage.
+typealias PartPlacement = PartView
+typealias CutPlaneValue = Plane
+
+/// The stage for a build of parts.
+struct PartsViewerStep: View {
+    let parts: [PartPlacement]
+    let controller: ViewerControl
+    var body: some View { ModelViewer(parts: parts, controller: controller) }
+}
 
 struct ViewerStep: View {
     let stlURL: URL?
@@ -126,6 +139,51 @@ struct FreeCADSheet: View {
 @MainActor func cameraChoices() -> [(id: String, name: String)] { sharedCamera.cameras.map { ($0.id, $0.name) } }
 @MainActor func chooseCamera(_ id: String) { Task { try? await sharedCamera.selectCamera(id: id) } }
 
+// MARK: Hand control
+
+typealias HandControls = HandControl
+
+extension HandStage: HandDragTarget {}
+
+/// Where the hand points on the stage. Draws on top of everything, never takes clicks.
+struct StageHandCursor: View {
+    let hands: HandControls
+    var body: some View { HandCursor(hands: hands) }
+}
+
+/// The Hands button with the camera mirror under it, for the stage's top right corner.
+struct StageHandPanel: View {
+    let hands: HandControls
+    var body: some View {
+        VStack(alignment: .trailing, spacing: Theme.Space.xs) {
+            HandToggle(hands: hands)
+            HandCameraBubble(hands: hands)
+        }
+    }
+}
+
 // MARK: Previews
 
 func previewAPI() -> BackendAPI { MockBackendAPI() }
+
+// MARK: Part size
+
+@MainActor private var sizeCache: [String: SIMD3<Double>] = [:]
+
+/// Width (x), depth (y) and height (z) in mm of a part file once turned by `yaw` degrees about z.
+/// Read once per file and turn, then kept.
+@MainActor func partSizeMM(url: URL, yaw: Double) -> SIMD3<Double>? {
+    let key = "\(url.path)@\(yaw)"
+    if let s = sizeCache[key] { return s }
+    // ponytail: a full STL read on the main thread, once per file. Move it off the main thread if big scans stall.
+    guard let mesh = try? STLLoader.parse(url: url), !mesh.positions.isEmpty else { return nil }
+    let r = yaw * .pi / 180, c = cos(r), s = sin(r)
+    var lo = SIMD3<Double>(repeating: .infinity), hi = -lo
+    for p in mesh.positions {
+        let x = Double(p.x), y = Double(p.y)
+        let v = SIMD3(x * c - y * s, x * s + y * c, Double(p.z))
+        lo = pointwiseMin(lo, v); hi = pointwiseMax(hi, v)
+    }
+    sizeCache[key] = hi - lo
+    return hi - lo
+}

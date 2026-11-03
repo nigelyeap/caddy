@@ -23,7 +23,7 @@ from scipy import ndimage, sparse
 from scipy.spatial import ConvexHull, cKDTree
 
 PRE_CAP = 200_000    # max faces fed to MeshFix clean. It is superlinear: 1.9M faces took 230 s.
-KEEP_PART = 0.15     # keep a separate piece if its area is at least this share of the biggest one
+KEEP_PART = 0.05     # keep a separate piece if its area is at least this share of the biggest one (about 22% of its size)
 MIN_WALL_MM = 0.8    # sheets thinner than this cannot print on a 0.4 mm nozzle. Treated as scan webs.
 
 
@@ -455,6 +455,11 @@ def clean_scan(mesh, longest_mm=None, max_faces=50_000, smooth_iters=10, progres
     mesh.apply_scale(factor)
     S = np.diag([factor] * 3 + [1.0]) @ T
     log.append(f"scale x{factor:.4g} -> longest {mesh.extents.max():.2f} mm")
+    if not longest_mm and mesh.extents.max() > 250:
+        shrink = 200.0 / mesh.extents.max()  # unknown real size and too big for the bed: fit it, the warning below says so
+        mesh.apply_scale(shrink)
+        S = np.diag([shrink] * 3 + [1.0]) @ S
+        warn.append("The scan was bigger than the print bed, so it was shrunk to fit. Enter its real longest side to get the true size.")
     if not longest_mm:
         unit = {1000.0: "metres", 10.0: "centimetres", 1.0: "millimetres"}[factor]
         warn.append(f"No real size was given, so the file was read as {unit} "

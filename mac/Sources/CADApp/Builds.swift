@@ -8,6 +8,12 @@ import CADShared
         let name: String
         let date: Date
         var id: String { url.lastPathComponent }
+        /// A build of parts keeps a sidecar next to its merged STL, so it reopens as parts.
+        var sidecar: URL? {
+            // The helper writes "name.stl.parts/parts.json" next to the merged STL.
+            let side = url.appendingPathExtension("parts")
+            return FileManager.default.fileExists(atPath: side.appendingPathComponent("parts.json").path) ? side : nil
+        }
     }
 
     @Published private(set) var items: [Item] = []
@@ -37,17 +43,22 @@ import CADShared
 
     /// Copies the model into the library and returns the new item.
     @discardableResult func save(_ stl: URL, name: String) throws -> Item {
+        let url = try newURL(name: name)
+        try FileManager.default.copyItem(at: stl, to: url)
+        reload()
+        return items.first { $0.id == url.lastPathComponent } ?? Item(url: url, name: name, date: Date())
+    }
+
+    /// Where a new build with this name goes. The helper writes builds of parts here itself.
+    func newURL(name: String) throws -> URL {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let clean = String(name.filter { $0.isLetter || $0.isNumber || $0 == " " }.prefix(30))
             .trimmingCharacters(in: .whitespaces)
-        let now = Date()
-        let url = dir.appendingPathComponent("\(Self.stamp.string(from: now)) -- \(clean.isEmpty ? "My build" : clean).stl")
-        try FileManager.default.copyItem(at: stl, to: url)
-        reload()
-        return items.first { $0.url == url } ?? Item(url: url, name: clean, date: now)
+        return dir.appendingPathComponent("\(Self.stamp.string(from: Date())) -- \(clean.isEmpty ? "My build" : clean).stl")
     }
 
     func delete(_ item: Item) {
+        if let side = item.sidecar { try? FileManager.default.removeItem(at: side) }
         try? FileManager.default.removeItem(at: item.url)
         reload()
     }
@@ -83,7 +94,8 @@ struct BuildsSection: View {
             ForEach(shown) { item in
                 Button { open(item) } label: {
                     HStack(spacing: Theme.Space.xs) {
-                        Image(systemName: "cube.fill").foregroundStyle(Theme.gold).accessibilityHidden(true)
+                        Image(systemName: item.sidecar == nil ? "cube.fill" : "square.stack.3d.up.fill")
+                            .foregroundStyle(Theme.gold).accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 0) {
                             Text(item.name).themeFont(.secondary).foregroundStyle(Theme.ink).lineLimit(1)
                             Text(item.date.formatted(date: .abbreviated, time: .shortened))

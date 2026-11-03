@@ -18,19 +18,34 @@ final class ViewerScene {
     private let keyLight = SCNNode()
     private let modelRoot = SCNNode()
     private let gridNode = SCNNode()
-    private var modelNode: SCNNode?
+    /// Snap lines while a part is dragged, the size tags and the bed ruler. None of them can be picked.
+    private let guideNode = SCNNode(), tagNode = SCNNode(), rulerNode = SCNNode(), cutLineNode = SCNNode()
+    /// Top level nodes under `modelRoot`, by part id. `setModel` keeps its one node under `singleID`.
+    /// A multi part entry is a container (bottom centre, yaw) holding one mesh child in the STL frame.
+    private(set) var parts: [String: SCNNode] = [:]
+    private var modelNode: SCNNode? { parts[Self.singleID] }
+    static let singleID = "__single__"
+    /// Geometry by file URL, so duplicates share one mesh. Holds the seat offset too.
+    private var geometryCache: [URL: (geometry: SCNGeometry, offset: SIMD3<Float>)] = [:]
+    private(set) var selectedID: String?
     private var material = SCNMaterial()
 
     private(set) var radius: Float = 50
     private(set) var center = SIMD3<Float>(0, 25, 0)
-    private(set) var hasModel = false
-    /// The model's eight box corners in world space, as it sits on screen now.
-    var modelCorners: [SIMD3<Float>] {
-        guard let n = modelNode?.presentation else { return [] }
+    var hasModel: Bool { !parts.isEmpty }
+    /// True when the scene came from `setParts`, so picking and moving apply.
+    var isMultiPart: Bool { !parts.isEmpty && modelNode == nil }
+    /// Every part's eight box corners in world space, as they sit on screen now.
+    var modelCorners: [SIMD3<Float>] { parts.values.flatMap { Self.corners(of: meshNode($0).presentation) } }
+
+    static func corners(of n: SCNNode) -> [SIMD3<Float>] {
         let (lo, hi) = n.boundingBox
         return [lo.x, hi.x].flatMap { x in [lo.y, hi.y].flatMap { y in [lo.z, hi.z].map { z in
             n.simdConvertPosition(SIMD3(Float(x), Float(y), Float(z)), to: nil) } } }
     }
+
+    /// The node that holds the geometry: the part itself for `setModel`, the child for a container.
+    private func meshNode(_ part: SCNNode) -> SCNNode { part.geometry != nil ? part : (part.childNodes.first ?? part) }
     private(set) var gridStepMM: Double = 10
     private var gridFootprint: Float = 0
     private var isDark = false
@@ -39,6 +54,10 @@ final class ViewerScene {
     /// The studio look (gradient backdrop, fading grid). Off gives the earlier flat look, for comparing.
     var newStage = true { didSet { setAppearance(dark: isDark) } }
     var showGrid = true { didSet { gridNode.isHidden = !showGrid } }
+    /// Width, depth and height tags on the selected part, or the only part.
+    var showSizes = true { didSet { refreshSizeTags() } }
+    /// A mm ruler along the front and left of the bed, and one standing up at the back corner.
+    var showRuler = false { didSet { rebuildRuler() } }
 
     static let defaultYaw: Float = 35 * .pi / 180
     static let defaultPitch: Float = -24 * .pi / 180
@@ -96,6 +115,11 @@ final class ViewerScene {
 
         scene.rootNode.addChildNode(gridNode)
         scene.rootNode.addChildNode(modelRoot)
+        for n in [guideNode, tagNode, rulerNode, cutLineNode] {
+            n.categoryBitMask = Self.outlineCategory
+            n.castsShadow = false
+            scene.rootNode.addChildNode(n)
+        }
         material = Self.makeMaterial()
         setAppearance(dark: false)
         frame(animated: false)
@@ -130,6 +154,7 @@ final class ViewerScene {
         // The new stage is drawn by SwiftUI behind a clear scene. Pictures get the gradient in snapshot().
         scene.background.contents = newStage ? nil : resolve(Theme.viewer)
         rebuildGridIfNeeded()
+        rebuildRuler()
         keyLight.light?.shadowColor = NSColor(white: 0, alpha: dark ? 0.45 : 0.28)
     }
 
@@ -173,19 +198,22 @@ final class ViewerScene {
         node.simdPosition = SIMD3(-c.x, -lo.z, c.y)
 
         // A sweep still running (quick undo/redo) would never remove its old mesh once replaced, so finish it now.
+        // Any multi part scene goes too, since this is the one model path.
         modelRoot.removeAction(forKey: "sweep")
-        for child in modelRoot.childNodes where child !== modelNode { child.removeFromParentNode() }
-        modelNode?.geometry?.materials = [material]
-        modelNode?.castsShadow = true
+        let old = modelNode
+        for child in modelRoot.childNodes where child !== old { child.removeFromParentNode() }
+        old?.geometry?.materials = [material]
+        old?.castsShadow = true
+        geometryCache = [:]
+        selectedID = nil
 
         let oldRadius = radius
         let size = hi - lo
         radius = max(simd_length(size) / 2, 1)
         center = SIMD3(0, size.z / 2, 0)
 
-        let old = modelNode
-        modelNode = node
-        hasModel = true
+        node.name = Self.singleID
+        parts = [Self.singleID: node]
         modelRoot.addChildNode(node)
         rebuildGrid(footprint: max(size.x, size.y))
         fitShadow()
@@ -196,6 +224,7 @@ final class ViewerScene {
             old?.removeFromParentNode()
         }
 
+        refreshSizeTags()
         if edit {
             let scale = radius / oldRadius
             move(animated: animate, duration: 0.5) {
@@ -208,9 +237,385 @@ final class ViewerScene {
     }
 
     func clearModel() {
-        modelNode?.removeFromParentNode()
-        modelNode = nil
-        hasModel = false
+        parts.values.forEach { $0.removeFromParentNode() }
+        parts = [:]
+        geometryCache = [:]
+        selectedID = nil
+        refreshSizeTags()
+    }
+
+    // MARK: Parts
+
+    func hasGeometry(for url: URL) -> Bool { geometryCache[url] != nil }
+
+    /// Shows a build of many parts. Diffs by id: new ids are added, gone ids removed, the rest re-placed.
+    /// `meshes` only needs the files not cached yet. A part whose mesh is missing is skipped.
+    /// The camera stays put; call `frame` for a fresh view.
+    // ponytail: no add pop, remove fade or per part sweep yet. Add them when this is wired into the app.
+    func setParts(_ list: [PartView], meshes: [URL: STLLoader.Mesh]) {
+        modelRoot.removeAction(forKey: "sweep")
+        if modelNode != nil { clearModel() }
+        for child in modelRoot.childNodes where !parts.values.contains(where: { $0 === child }) { child.removeFromParentNode() }
+
+        for (url, mesh) in meshes where geometryCache[url] == nil {
+            let g = STLLoader.makeGeometry(mesh)
+            g.materials = [material]
+            let lo = mesh.boundsMin, hi = mesh.boundsMax, c = (lo + hi) / 2
+            geometryCache[url] = (g, SIMD3(-c.x, -lo.z, c.y))
+        }
+
+        var reselect = false
+        let wanted = Set(list.map(\.id))
+        for (id, node) in parts where !wanted.contains(id) {
+            node.removeFromParentNode()
+            parts[id] = nil
+        }
+        for p in list {
+            guard let cached = geometryCache[p.url] else { continue }
+            let container: SCNNode
+            if let existing = parts[p.id] {
+                container = existing
+            } else {
+                container = SCNNode()
+                container.name = p.id
+                container.addChildNode(SCNNode())
+                modelRoot.addChildNode(container)
+                parts[p.id] = container
+            }
+            let mesh = meshNode(container)
+            if mesh.geometry !== cached.geometry {
+                mesh.geometry = cached.geometry
+                // STL z up to SceneKit y up, then seat the file's bottom centre on the container origin.
+                mesh.eulerAngles.x = -.pi / 2
+                mesh.simdPosition = cached.offset
+                if selectedID == p.id { reselect = true }
+            }
+            container.simdPosition = p.scenePosition
+            container.eulerAngles.y = CGFloat(p.yawDegrees * .pi / 180)
+        }
+        let used = Set(list.map(\.url))
+        geometryCache = geometryCache.filter { used.contains($0.key) }
+        // The outline is rebuilt from the new mesh once every part has its final place and turn.
+        if let s = selectedID, reselect || parts[s] == nil { select(parts[s] == nil ? nil : s) }
+        fitBounds()
+        refreshSizeTags()
+    }
+
+    /// Radius, centre, grid and shadow cover every part. Leaves the camera alone.
+    func fitBounds() {
+        let pts = parts.values.flatMap { Self.corners(of: meshNode($0)) }
+        guard var lo = pts.first else { return }
+        var hi = lo
+        for p in pts { lo = simd_min(lo, p); hi = simd_max(hi, p) }
+        radius = max(simd_length(hi - lo) / 2, 1)
+        center = (lo + hi) / 2
+        // The grid is centred on the origin, so it has to reach the part furthest out.
+        rebuildGrid(footprint: 2 * max(abs(lo.x), abs(hi.x), abs(lo.z), abs(hi.z)))
+        fitShadow()
+    }
+
+    /// The part id a hit node belongs to, walking up to the top level node.
+    func partID(of node: SCNNode) -> String? {
+        var n: SCNNode? = node
+        while let cur = n, cur.parent !== modelRoot { n = cur.parent }
+        guard let top = n, let id = top.name, parts[id] === top else { return nil }
+        return id
+    }
+
+    func position(of id: String) -> SIMD3<Float>? { parts[id]?.simdPosition }
+
+    /// Hit tests aimed at parts skip the selection outline, which sits on this bit.
+    static let outlineCategory = 2
+
+    /// How high a part at (x, z) should sit: on top of the highest other part under its bottom centre,
+    /// or on the floor.
+    // ponytail: one ray at the bottom centre. A part hanging over an edge can sink into its neighbour.
+    // Cast a few rays across the footprint if kids notice.
+    func restHeight(for id: String, x: Float, z: Float) -> Float {
+        // Hit tests read the committed tree. Commit now so a part added this frame counts.
+        SCNTransaction.flush()
+        let hits = modelRoot.hitTestWithSegment(from: SCNVector3(x, 100_000, z), to: SCNVector3(x, -1, z),
+                                                options: [SCNHitTestOption.searchMode.rawValue: SCNHitTestSearchMode.all.rawValue,
+                                                          SCNHitTestOption.categoryBitMask.rawValue: 1,
+                                                          SCNHitTestOption.backFaceCulling.rawValue: false])
+        return hits.filter { partID(of: $0.node) != id }.map { Float($0.worldCoordinates.y) }.max() ?? 0
+    }
+
+    /// The print bed is 250 mm, so a part's centre stays within 125 mm of the middle.
+    static let bedHalf: Float = 125
+
+    /// Slides a part to (x, z), snapped to 1 mm and kept on the bed, resting on whatever is below.
+    /// `exact` skips the 1 mm rounding on an axis that already lined up with something.
+    /// Returns where it ended up.
+    @discardableResult
+    func movePart(_ id: String, x: Float, z: Float, exact: (x: Bool, z: Bool) = (false, false)) -> SIMD3<Float>? {
+        guard let node = parts[id] else { return nil }
+        let x = min(max(exact.x ? x : x.rounded(), -Self.bedHalf), Self.bedHalf)
+        let z = min(max(exact.z ? z : z.rounded(), -Self.bedHalf), Self.bedHalf)
+        let p = SIMD3(x, restHeight(for: id, x: x, z: z), z)
+        node.simdPosition = p
+        refreshSizeTags()
+        return p
+    }
+
+    /// A part's box on the floor, scene x and z, where it sits now.
+    func footprint(_ id: String) -> SnapBox? {
+        guard let node = parts[id] else { return nil }
+        let pts = Self.corners(of: meshNode(node))
+        guard let first = pts.first else { return nil }
+        var lo = SIMD2(first.x, first.z), hi = lo
+        for p in pts { lo = simd_min(lo, SIMD2(p.x, p.z)); hi = simd_max(hi, SIMD2(p.x, p.z)) }
+        return SnapBox(min: lo, max: hi)
+    }
+
+    /// Like `movePart`, but first lines the part up with the other parts and the bed centre lines
+    /// when it comes within 3 mm, and draws a guide line for each axis that lined up.
+    func dragPart(_ id: String, x: Float, z: Float, snap: Bool) {
+        guard snap, let node = parts[id], let box = footprint(id) else {
+            showGuides([])
+            movePart(id, x: x, z: z)
+            return
+        }
+        let shift = SIMD2(x - node.simdPosition.x, z - node.simdPosition.z)
+        let others = parts.filter { $0.key != id && !$0.value.isHidden }.keys.compactMap(footprint) + SnapSolver.bedLines
+        let r = SnapSolver.snap(moving: SnapBox(min: box.min + shift, max: box.max + shift), others: others)
+        showGuides(r.guides)
+        movePart(id, x: x + (r.dx ?? 0), z: z + (r.dy ?? 0), exact: (r.dx != nil, r.dy != nil))
+    }
+
+    /// Thin accent lines just above the floor. An empty list clears them.
+    func showGuides(_ guides: [(from: SIMD2<Float>, to: SIMD2<Float>)]) {
+        let pts = guides.flatMap { [SIMD3($0.from.x, 0.2, $0.from.y), SIMD3($0.to.x, 0.2, $0.to.y)] }
+        guideNode.geometry = pts.isEmpty ? nil : lines(pts, color: resolve(Theme.accent), onTop: true)
+    }
+
+    /// A part's turn about the upright axis, in degrees, same sign as `PartView.yawDegrees`.
+    func yawDegrees(of id: String) -> Double? { parts[id].map { Double($0.eulerAngles.y) * 180 / .pi } }
+
+    /// Turns a part in place to `yawDegrees`. Only the preview: the app saves it on release.
+    func turnPart(_ id: String, yawDegrees: Double) {
+        parts[id]?.eulerAngles.y = CGFloat(yawDegrees * .pi / 180)
+        refreshSizeTags()
+    }
+
+    /// A thick cut coloured line between two world points, drawn over the parts. Nil clears it.
+    func showCutLine(_ ends: (SIMD3<Float>, SIMD3<Float>)?) {
+        cutLineNode.childNodes.forEach { $0.removeFromParentNode() }
+        guard let (a, b) = ends, simd_distance(a, b) > 0.01 else { return }
+        let bar = SCNCylinder(radius: CGFloat(max(simd_distance(a, b) * 0.012, 0.4)), height: CGFloat(simd_distance(a, b)))
+        bar.materials = [overlayMaterial(resolve(Theme.tintCut.ink), onTop: true)]
+        let n = SCNNode(geometry: bar)
+        n.simdPosition = (a + b) / 2
+        n.simdOrientation = simd_quatf(from: SIMD3(0, 1, 0), to: simd_normalize(b - a))
+        n.categoryBitMask = Self.outlineCategory
+        n.renderingOrder = 10
+        cutLineNode.addChildNode(n)
+    }
+
+    /// Raises or lowers a part by `dy` mm, never below the floor. Used by Shift drag.
+    func liftPart(_ id: String, by dy: Float) {
+        guard let node = parts[id] else { return }
+        node.simdPosition.y = min(max(node.simdPosition.y + dy, 0), 250)
+        refreshSizeTags()
+    }
+
+    // MARK: Size tags and ruler
+
+    /// Plain lines, two points each. `onTop` draws them over the parts, so they never hide.
+    private func lines(_ pts: [SIMD3<Float>], color: NSColor, onTop: Bool) -> SCNGeometry {
+        let el = SCNGeometryElement(indices: (0..<UInt32(pts.count)).map { $0 }, primitiveType: .line)
+        let g = SCNGeometry(sources: [SCNGeometrySource(vertices: pts.map { SCNVector3($0) })], elements: [el])
+        g.materials = [overlayMaterial(color, onTop: onTop)]
+        return g
+    }
+
+    private func overlayMaterial(_ contents: Any, onTop: Bool) -> SCNMaterial {
+        let m = SCNMaterial()
+        m.lightingModel = .constant
+        m.diffuse.contents = contents
+        m.isDoubleSided = true
+        m.readsFromDepthBuffer = !onTop
+        m.writesToDepthBuffer = false
+        return m
+    }
+
+    /// A flat card showing `text` that always turns to face the camera. It keeps the same size on screen:
+    /// `perMM` is its height in mm for each mm the camera is away. `push` moves it across the screen away
+    /// from `tagCentre`, so a size tag sits beside the part instead of on it.
+    private func label(_ text: String, perMM: Float, ink: NSColor, pill: NSColor?, onTop: Bool, push: Bool = false) -> SCNNode {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 24, weight: .semibold)
+        let str = NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: ink])
+        let t = str.size()
+        let w = ceil(t.width + (pill == nil ? 4 : 22)), h = ceil(t.height + 10)
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(w * 2), pixelsHigh: Int(h * 2), bitsPerSample: 8,
+                                   samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                   bytesPerRow: 0, bitsPerPixel: 0)!
+        rep.size = NSSize(width: w, height: h)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        if let pill {
+            let path = NSBezierPath(roundedRect: NSRect(x: 1, y: 1, width: w - 2, height: h - 2), xRadius: h / 2 - 1, yRadius: h / 2 - 1)
+            pill.setFill(); path.fill()
+            NSColor(white: 0, alpha: 0.18).setStroke(); path.stroke()
+        }
+        str.draw(at: NSPoint(x: (w - t.width) / 2, y: (h - t.height) / 2))
+        NSGraphicsContext.restoreGraphicsState()
+
+        let plane = SCNPlane(width: w / h, height: 1)
+        plane.materials = [overlayMaterial(rep.cgImage as Any, onTop: onTop)]
+        let n = SCNNode(geometry: plane)
+        n.name = text
+        n.castsShadow = false
+        n.categoryBitMask = Self.outlineCategory
+        n.renderingOrder = onTop ? 20 : 0
+        let cam = cameraNode
+        let aspect = Float(w / h)
+        n.constraints = [SCNBillboardConstraint(), SCNTransformConstraint(inWorldSpace: true) { [weak self, weak n] _, m in
+            let eye = cam.presentation.simdWorldPosition
+            var t = simd_float4x4(m)
+            guard push, let n, let centre = self?.tagCentre else { return SCNMatrix4(Self.screenSized(t, eye: eye, perMM: perMM)) }
+            // Start from the node's own spot, never last frame's pushed one, so the push cannot creep.
+            let anchor = n.simdWorldPosition
+            t.columns.3 = SIMD4(anchor, 1)
+            t = Self.screenSized(t, eye: eye, perMM: perMM)
+            let s = simd_distance(anchor, eye) * perMM
+            let p = Self.pushedOut(anchor, from: centre, right: cam.presentation.simdWorldRight,
+                                   up: cam.presentation.simdWorldUp, size: SIMD2(s * aspect, s))
+            t.columns.3 = SIMD4(p, 1)
+            return SCNMatrix4(t)
+        }]
+        return n
+    }
+
+    /// Moves a card at `anchor` across the screen, straight away from `centre`, by its own half size along
+    /// that way plus a small gap. `right` and `up` are the camera's, `size` the card's width and height in mm.
+    static func pushedOut(_ anchor: SIMD3<Float>, from centre: SIMD3<Float>, right: SIMD3<Float>, up: SIMD3<Float>,
+                          size: SIMD2<Float>) -> SIMD3<Float> {
+        let d = anchor - centre
+        let flat = SIMD2(simd_dot(d, right), simd_dot(d, up))
+        guard simd_length(flat) > 1e-3 else { return anchor }
+        let dir = simd_normalize(flat)
+        let push = (abs(dir.x) * size.x + abs(dir.y) * size.y) / 2 + size.y * 0.2
+        return anchor + (right * dir.x + up * dir.y) * push
+    }
+
+    /// Scales a card to `perMM` times its distance from the eye. The live view feeds the last result
+    /// back in each frame, so the axes are set to that length, never multiplied, or the card grows
+    /// every frame until it fills the screen.
+    static func screenSized(_ m: simd_float4x4, eye: SIMD3<Float>, perMM: Float) -> simd_float4x4 {
+        var w = m
+        let s = simd_distance(SIMD3(w.columns.3.x, w.columns.3.y, w.columns.3.z), eye) * perMM
+        for i in 0..<3 {
+            let c = SIMD3(w[i].x, w[i].y, w[i].z), len = simd_length(c)
+            if len > 0 { w[i] = SIMD4(c / len * s, 0) }
+        }
+        return w
+    }
+
+    /// Size tag height per mm of camera distance. About 22 points tall in a 700 point high view.
+    private static let tagScale: Float = 0.02
+    /// Ruler numbers, smaller than the tags. About 15 points tall in a 700 point high view.
+    private static let rulerScale: Float = 0.012
+
+    /// The middle of the part the size tags are on. They are pushed away from it on screen.
+    private var tagCentre: SIMD3<Float>?
+
+    /// Puts the three size tags on the selected part, or the only part. Called whenever it moves.
+    func refreshSizeTags() {
+        let id = selectedID ?? (parts.count == 1 ? parts.keys.first : nil)
+        guard showSizes, let id, let part = parts[id] else {
+            tagNode.childNodes.forEach { $0.removeFromParentNode() }
+            return
+        }
+        let pts = Self.corners(of: meshNode(part))
+        var lo = pts[0], hi = pts[0]
+        for p in pts { lo = simd_min(lo, p); hi = simd_max(hi, p) }
+        let tags = SizeTags.tags(lo: lo, hi: hi)
+        tagCentre = (lo + hi) / 2
+        if tagNode.childNodes.count != tags.count { tagNode.childNodes.forEach { $0.removeFromParentNode() } }
+        for (i, t) in tags.enumerated() {
+            let text = SizeTags.text(t.mm)
+            var n = i < tagNode.childNodes.count ? tagNode.childNodes[i] : nil
+            if n?.name != text {
+                let fresh = label(text, perMM: Self.tagScale, ink: NSColor(white: 0.12, alpha: 1), pill: NSColor(white: 0.97, alpha: 0.95), onTop: true, push: true)
+                if let n { tagNode.replaceChildNode(n, with: fresh) } else { tagNode.addChildNode(fresh) }
+                n = fresh
+            }
+            n?.simdPosition = t.at
+        }
+    }
+
+    /// Ticks every 10 mm, a longer tick and a number every 50 mm, 0 at the front left corner.
+    private func rebuildRuler() {
+        rulerNode.childNodes.forEach { $0.removeFromParentNode() }
+        rulerNode.geometry = nil
+        guard showRuler else { return }
+        let h = Self.bedHalf, y: Float = 0.06
+        var pts: [SIMD3<Float>] = [SIMD3(-h, y, h), SIMD3(h, y, h), SIMD3(-h, y, h), SIMD3(-h, y, -h), SIMD3(-h, 0, -h), SIMD3(-h, 250, -h)]
+        let ink = resolve(Theme.muted)
+        for mm in stride(from: 0, through: 250, by: 10) {
+            let o = Float(mm), big = mm % 50 == 0, len: Float = big ? 6 : 3
+            pts += [SIMD3(-h + o, y, h), SIMD3(-h + o, y, h + len)]   // front edge, outward
+            pts += [SIMD3(-h, y, h - o), SIMD3(-h - len, y, h - o)]   // left edge, outward
+            pts += [SIMD3(-h, o, -h), SIMD3(-h - len, o, -h)]         // standing up at the back left corner
+            guard big else { continue }
+            // The upright ruler skips its 0, which would sit on top of the floor's 250 at that corner.
+            let spots = [SIMD3(-h + o, y, h + 12), SIMD3(-h - 12, y, h - o)] + (mm == 0 ? [] : [SIMD3(-h - 14, o, -h)])
+            for at in spots {
+                // Drawn over the parts so a part never hides a number. Below the size tags, which win.
+                let n = label("\(mm)", perMM: Self.rulerScale, ink: ink, pill: nil, onTop: true)
+                n.renderingOrder = 15
+                n.simdPosition = at
+                rulerNode.addChildNode(n)
+            }
+        }
+        rulerNode.geometry = lines(pts, color: gridColor, onTop: false)
+    }
+
+    private lazy var outlineMaterial: SCNMaterial = {
+        let m = SCNMaterial()
+        m.lightingModel = .constant
+        m.diffuse.contents = resolve(Theme.gold)
+        // Draw only the back faces of a slightly fattened copy, so a rim shows around the part.
+        m.cullMode = .front
+        m.shaderModifiers = [.geometry: """
+        #pragma arguments
+        float outlinePerMM;
+        float3 outlineCentre;
+        #pragma body
+        // Push away from the part's centre, not along the normal. Hard edges have split normals, and
+        // pushing along those tears the rim open at every box corner.
+        // Never push down. The geometry frame is the STL one, z up. A rim pushed under the floor showed
+        // on the lit side only, so the outline looked shifted to one side.
+        float3 away = _geometry.position.xyz - outlineCentre;
+        away.z = max(away.z, 0.0);
+        // Grow with camera distance, so the rim is the same few points wide at any zoom and part size.
+        float depth = abs((scn_node.modelViewTransform * _geometry.position).z);
+        _geometry.position.xyz += (length(away) > 1e-4 ? normalize(away) : _geometry.normal) * depth * outlinePerMM;
+        """]
+        return m
+    }()
+
+    /// Gold outline on one part, or none. The outline is a child copy of the mesh pushed outward a little.
+    // ponytail: pushing from the centre is rough on deep hollows like a mug's inside. A screen space
+    // outline pass fixes it if it looks bad on real scans.
+    func select(_ id: String?) {
+        for node in parts.values { meshNode(node).childNode(withName: "outline", recursively: false)?.removeFromParentNode() }
+        selectedID = id
+        refreshSizeTags()
+        guard let id, let part = parts[id], let g = meshNode(part).geometry?.copy() as? SCNGeometry else { return }
+        let m = outlineMaterial.copy() as! SCNMaterial
+        // The geometry's own box. The node's box also counts its children, which can include an old outline.
+        let (lo, hi) = g.boundingBox
+        // About 5 points in a 700 point high view, like `tagScale`.
+        m.setValue(Float(0.004), forKey: "outlinePerMM")
+        m.setValue(SCNVector3((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, (lo.z + hi.z) / 2), forKey: "outlineCentre")
+        g.materials = [m]
+        let outline = SCNNode(geometry: g)
+        outline.name = "outline"
+        outline.castsShadow = false
+        outline.categoryBitMask = Self.outlineCategory
+        meshNode(part).addChildNode(outline)
     }
 
     /// Multiplies every SceneKit animation time. 1 normally. The harness sets it above 1 to slow things down.

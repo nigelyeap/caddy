@@ -10,7 +10,7 @@ import urllib.error
 import urllib.request
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8000"
-STATE_KEYS = {"status", "error", "detail", "versions", "redo", "sample", "started", "engine"}
+STATE_KEYS = {"status", "error", "detail", "versions", "redo", "sample", "started", "engine", "parts", "putAway", "note"}
 
 
 def call(method, path, body=None, ctype=None):

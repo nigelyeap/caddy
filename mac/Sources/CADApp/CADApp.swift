@@ -71,6 +71,7 @@ struct CADDIYApp: App {
         Window("CADDIY", id: "main") {
             RootView(helper: helper, model: model, tutorial: tutorial)
                 .frame(minWidth: 1024, minHeight: 700)
+                .onAppear { delegate.windowAppeared() }
                 .task { await prepareTutorialHarness() }
                 .task {
                     // Harness: start from the first-run screen.
@@ -127,16 +128,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NotificationCenter.default.post(name: .openFromFinder, object: URL(fileURLWithPath: demo))
             }
         }
-        // Screenshot runs set CADDIY_BACKGROUND so the app never jumps in front of other work.
-        let quiet = env["CADDIY_BACKGROUND"] != nil
-        if !quiet { NSApp.activate(ignoringOtherApps: true) }
-        // SwiftUI makes the window a moment after launch. macOS 14 may refuse to activate an app opened in the
-        // background, so order the window in regardless.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        if !Self.quiet { NSApp.activate(ignoringOtherApps: true) }
+    }
+
+    /// Screenshot runs set CADDIY_BACKGROUND so the app never jumps in front of other work.
+    private static var quiet: Bool { ProcessInfo.processInfo.environment["CADDIY_BACKGROUND"] != nil }
+    private var placedWindow = false
+
+    /// SwiftUI makes the window some time after launch, later still on a slow or background launch.
+    /// macOS 14 may refuse to activate an app opened in the background, so the main view calls this when it
+    /// first appears, and the window is ordered in regardless. Once only.
+    func windowAppeared() {
+        guard !placedWindow else { return }
+        placedWindow = true
+        // Next turn of the run loop, after SwiftUI has ordered the window in itself.
+        DispatchQueue.main.async {
             for w in NSApp.windows where w.canBecomeMain {
                 // Tour harness runs use the smallest window, the hardest case for the bubble.
-                if tourScreen != nil { w.setContentSize(NSSize(width: 1024, height: 700)) }
-                if quiet { w.orderBack(nil) } else { w.orderFrontRegardless(); w.makeKey() }
+                if Tutorial.harnessScreen() != nil { w.setContentSize(NSSize(width: 1024, height: 700)) }
+                if Self.quiet { w.orderBack(nil) } else { w.orderFrontRegardless(); w.makeKey() }
             }
         }
     }
@@ -208,6 +218,19 @@ struct AppCommands: Commands {
                 .keyboardShortcut("l", modifiers: [.command, .shift]).disabled(model.step != .edit)
             Button("Zoom In") { model.viewer.zoom(by: 1.25) }.keyboardShortcut("+").disabled(model.step != .edit)
             Button("Zoom Out") { model.viewer.zoom(by: 0.8) }.keyboardShortcut("-").disabled(model.step != .edit)
+            Divider()
+            Button("Tip Part Forward") { Task { await model.tipSelected(90) } }
+                .keyboardShortcut("r").disabled(model.step != .edit)
+            Button("Tip Part Back") { Task { await model.tipSelected(-90) } }
+                .keyboardShortcut("r", modifiers: [.command, .shift]).disabled(model.step != .edit)
+            Button("Tip Part Right") { Task { await model.tipSelected(90, sideways: true) } }
+                .keyboardShortcut("r", modifiers: [.command, .option]).disabled(model.step != .edit)
+            Button("Tip Part Left") { Task { await model.tipSelected(-90, sideways: true) } }
+                .keyboardShortcut("r", modifiers: [.command, .option, .shift]).disabled(model.step != .edit)
+            Button("Lay Part Flat") { Task { await model.layFlatSelected() } }
+                .keyboardShortcut("f", modifiers: [.command, .shift]).disabled(model.step != .edit)
+            Button("Mirror Part Left/Right") { Task { await model.mirrorSelected(sideways: true) } }
+                .keyboardShortcut("m", modifiers: [.command, .shift]).disabled(model.step != .edit)
             Divider()
         }
         CommandGroup(after: .toolbar) {

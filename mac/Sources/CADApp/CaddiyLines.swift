@@ -4,6 +4,8 @@ import Foundation
 /// Keep lines short and plain. No em dashes and no semicolons (a test checks this).
 enum CaddiyMoment: CaseIterable {
     case launch, home, process, processFailed, edit, afterChange
+    // A build of parts.
+    case split, added, copied, putAway, joined, cutHint, cutReady, cut, move, pickPart, partFailed
 }
 
 /// One thing Caddiy says. `then` follows a moment later, so a sad line can end on a hopeful one.
@@ -51,6 +53,39 @@ enum CaddiyLines {
         case .afterChange:
             [CaddiyLine("Looking good!", .cheer), CaddiyLine("Nice change!", .cheer),
              CaddiyLine("Ooh, I like it!", .loveIt), CaddiyLine("Great job!", .loveIt)]
+        case .split:
+            [CaddiyLine("I found more than one thing! Now they are parts.", .idea),
+             CaddiyLine("Ta da! Your scan is in pieces now.", .cheer)]
+        case .added:
+            [CaddiyLine("Ta da! A new part.", .cheer),
+             CaddiyLine("New part! Pick Move and slide it.", .pointLeft)]
+        case .copied:
+            [CaddiyLine("Two of them! Twice the fun.", .loveIt),
+             CaddiyLine("Copy made. Slide it where you like.", .cheer)]
+        case .putAway:
+            [CaddiyLine("Put away. You can bring it back.", .talking),
+             CaddiyLine("Tidy! It waits in Put away.", .idea)]
+        case .joined:
+            [CaddiyLine("Now they move together.", .loveIt),
+             CaddiyLine("Stuck together like best friends.", .cheer)]
+        case .cutHint:
+            [CaddiyLine("Draw a line across a part to cut it.", .pointLeft),
+             CaddiyLine("Drag a line where you want the cut.", .idea)]
+        case .cutReady:
+            [CaddiyLine("Snip ready! Tap Cut here.", .pointRight),
+             CaddiyLine("Happy with the line? Tap Cut here.", .idea)]
+        case .cut:
+            [CaddiyLine("Snip snip! Two parts now.", .cheer),
+             CaddiyLine("Clean cut! Nice work.", .loveIt)]
+        case .move:
+            [CaddiyLine("Grab a part and slide it.", .pointLeft),
+             CaddiyLine("Let go to drop it.", .talking)]
+        case .pickPart:
+            [CaddiyLine("Pick a part first.", .pointLeft),
+             CaddiyLine("Click a part, then try again.", .idea)]
+        case .partFailed:
+            [CaddiyLine("Oops. That did not work.", .sad, then: CaddiyLine("Try again. You can do it!", .cheer)),
+             CaddiyLine("Hmm, that one was tricky.", .thinking)]
         }
     }
 

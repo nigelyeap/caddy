@@ -11,10 +11,13 @@ let package = Package(
         .target(name: "CADBackend", dependencies: ["CADShared"]),
         .target(name: "CADScan", dependencies: ["CADShared"]),
         .target(name: "CADViewer", dependencies: ["CADShared"]),
-        .executableTarget(name: "CADApp", dependencies: ["CADShared", "CADBackend", "CADScan", "CADViewer"],
+        .target(name: "CADGesture", dependencies: ["CADShared"]),
+        .executableTarget(name: "CADApp", dependencies: ["CADShared", "CADBackend", "CADScan", "CADViewer", "CADGesture"],
                           resources: [.copy("Resources/mug.stl"), .copy("Resources/turntable_sample.txt"), .copy("Resources/Caddiy")]),
         .testTarget(name: "CADScanTests", dependencies: ["CADScan", "CADShared"]),
-        .testTarget(name: "CADAppTests", dependencies: ["CADApp", "CADShared"]),
+        .testTarget(name: "CADAppTests", dependencies: ["CADApp", "CADShared", "CADBackend"]),
+        .testTarget(name: "CADViewerTests", dependencies: ["CADViewer"]),
+        .testTarget(name: "CADGestureTests", dependencies: ["CADGesture"]),
     ],
     swiftLanguageModes: [.v5]
 )

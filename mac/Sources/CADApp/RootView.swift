@@ -139,7 +139,7 @@ struct RootView: View {
             }
             .frame(maxWidth: .infinity)
             Divider()
-            ScanSidePanel(builds: model.builds, openBuild: model.openBuild,
+            ScanSidePanel(builds: model.builds, openBuild: { item in Task { await model.openBuild(item) } },
                           openFile: openPanel, sample: model.useSample,
                           openTurntable: openTurntablePanel, turntableSample: openTurntableSample)
                 .frame(width: 280 * textSize.scale)
@@ -183,7 +183,7 @@ struct RootView: View {
                     Theme.line.frame(width: 1, height: 16)
                     StepIndicator(current: model.step)
                     if model.step == .edit {
-                        Button { model.goHome() } label: { Label("Home", systemImage: "house.fill") }
+                        Button { Task { await model.goHome() } } label: { Label("Home", systemImage: "house.fill") }
                             .buttonStyle(ChipButtonStyle(tint: Theme.tintSun))
                             .help("Back to the start. Your build is saved in My builds.")
                             .disabled(model.isEditing)

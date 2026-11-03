@@ -133,7 +133,7 @@ if (( BUNDLE )); then
   mkdir -p "$RES/server/webapp" "$RES/server/bench" "$RES/server/guidance"
   cp "$ROOT/webapp/app.py" "$ROOT/webapp/processing.py" "$RES/server/webapp/"
   cp -R "$ROOT/webapp/static" "$RES/server/webapp/"
-  cp "$ROOT/bench"/{edit,edit_cases,clean,turntable}.py "$RES/server/bench/"
+  cp "$ROOT/bench"/{edit,edit_cases,clean,turntable,parts}.py "$RES/server/bench/"
   [[ -f "$ROOT/bench/turntable_calib.json" ]] && cp "$ROOT/bench/turntable_calib.json" "$RES/server/bench/"
   cp "$ROOT/guidance/guidance.py" "$RES/server/guidance/"
   "$RES/runtime/python/bin/python3" -m compileall -q --invalidation-mode unchecked-hash "$RES/server" >/dev/null

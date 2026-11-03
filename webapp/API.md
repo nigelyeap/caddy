@@ -4,7 +4,7 @@ The Python server is a local service. The web page in `static/` uses it today. T
 
 Start it with `uv run uvicorn app:app --host 127.0.0.1 --port 8000` from `webapp/`. Keep it on 127.0.0.1. There is no login, so it must never listen on the network.
 
-Check it with `uv run python test_api.py http://localhost:8000` while the server runs. That test replaces the current model with the sample cup.
+Check it with `uv run python test_api.py http://localhost:8000` while the server runs. That test replaces the current model with the sample cup. The parts routes have their own test that needs no server: `uv run python test_parts_api.py`.
 
 ## Rules
 
@@ -107,6 +107,50 @@ No body. Returns State. Undo never removes the first version. Both return 409 wh
 ### GET /api/model.stl
 
 The current model as binary STL. `Cache-Control: no-store`. 404 when there is no model.
+
+## Many parts in one build
+
+State also has these keys, on every state endpoint:
+
+```json
+{
+  "parts": [{"id": "73cc9fd1", "name": "Part 1", "file": "p1793696649401456000.stl", "x": 0.0, "y": 0.0, "z": 0.0, "yaw": 0.0}],
+  "putAway": [],
+  "note": null
+}
+```
+
+- `parts` and `putAway` mirror the current version. Each version entry may carry its own `parts` and `putAway`, so undo and redo bring back the parts list.
+- Empty `parts` means the single-model behaviour above, unchanged. Nothing turns parts on except split, add and open.
+- `x, y, z` are mm in the STL frame (z up) and place the part's bottom centre. `yaw` is degrees about z. Each part `file` is seated: centred on x, y with its base on z=0.
+- `putAway` is the tray: parts set aside, same shape.
+- `note` is null except on a split of one piece.
+- Part files `p<time_ns>.stl` are never rewritten or deleted. Cache them by name.
+- `versions[i].file` is still there. In parts mode it is the model the parts came from. Do not show it.
+
+Every POST below takes a JSON body, returns State, and adds one undoable version, except bake (no change) and open (a new build). Mesh calls (split, add, join, cut, edit) return 409 while another one runs. Refusals use the usual error body with a 400.
+
+| Call | Body | Does |
+| --- | --- | --- |
+| `GET /api/part/{file}` | | STL bytes of one part file. 404 for any name that is not `p<digits>.stl` or does not exist. |
+| `POST /api/parts/split` | `{}` | Splits the current single model into its separate pieces, laid out side by side along x with a 10 mm gap. One piece: State unchanged with `note: "It is one piece"`. 409 if the build is already in parts. |
+| `POST /api/parts/move` | `{id, x, y, z, yaw}` | Sets that part's placement. No mesh work. |
+| `POST /api/parts/duplicate` | `{id}` | New id, same file, 20 mm further along x. |
+| `POST /api/parts/delete` | `{id}` | Moves the part to `putAway`. |
+| `POST /api/parts/restore` | `{id}` | Moves it back from `putAway` to the end of `parts`. |
+| `POST /api/parts/add` | `{name}` | A library shape: `cube`, `ball`, `cylinder`, `cone`, `pyramid`, `donut`, `star`, `heart`, `base plate`. Placed on the floor, 10 mm to the right of everything. On a single model, that model first becomes a part named "Model", left where it was. |
+| `POST /api/parts/join` | `{ids: [...]}` | Unions the parts at their placements into one new part at the union's bottom centre, yaw 0. Gaps up to about 2 mm still join. Too far apart: 400 "Push them together so they touch, then join." |
+| `POST /api/parts/cut` | `{id, point: [x,y,z], normal: [x,y,z]}` | Plane in that part's own file frame. The pieces replace the part, each nudged 3 mm along the normal away from the other side, never below the floor. A plane that misses: 400 with a plain message. |
+| `POST /api/parts/rotate` | `{id, degrees, axis}` | Tips the part about a flat world axis through its centre. `axis` is `"x"`, `"y"` or an azimuth in degrees (0 = x, 90 = y), default `"x"`. New file, base back on the floor, yaw kept. |
+| `POST /api/parts/resize` | `{id, sx, sy, sz}` | Scale factors in world axes, each 0.05 to 20, about the part's bottom centre, which stays put. Non-uniform: the yaw is baked into the new file and the part comes back with yaw 0. Uniform keeps the yaw. 400 if the result is over 250 mm in x, y or z, or under 1 mm in any direction. |
+| `POST /api/parts/mirror` | `{id, axis}` | Mirrors across the vertical plane through the part centre whose normal is `axis` (same values as rotate). Yaw kept, mesh stays closed. |
+| `POST /api/parts/layflat` | `{id}` | Lies the part on its biggest stable flat side (convex hull face with the centre of mass above it, least turning among faces within 5 percent of the biggest). Yaw kept. Already lying on it (within 0.5 degrees): State unchanged, no new version. |
+| `POST /api/edit` | `{instruction, part}` | In parts mode `part` (an id) is required, else 400 "Pick a part first.". The edit runs on that part's file. The result replaces it in place: same id, x and y follow its new centre, z stays. |
+| `GET /api/model.stl` | | In parts mode: every placed part merged into one STL. No union, so unjoined parts still export as separate bodies. |
+| `POST /api/parts/bake` | `{path}` | `path` is an absolute `.stl` path. Writes the merged STL there, and `path + ".parts/"` with `parts.json` (`{parts, putAway}`) and a copy of every part file used. 409 with no parts. |
+| `POST /api/parts/open` | `{path}` | Reads `path + ".parts/parts.json"`, copies the part files back, and starts a new build with one version. 400 if the files are missing or bad. |
+
+Mesh work runs in one long-lived `bench/parts.py --serve` worker started on first use, so only the first call pays the start-up cost.
 
 ## For the Mac app
 

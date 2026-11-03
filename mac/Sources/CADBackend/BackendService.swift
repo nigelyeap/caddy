@@ -263,7 +263,9 @@ public final class BackendService: ObservableObject {
         return await Task.detached(priority: .userInitiated) {
             guard let root = Self.projectRoot(rootOverride) else { return nil }
             let keyFolder = Self.bundledRuntime == nil ? root : Self.supportFolder
-            return (root, Self.readKey(from: keyFileOverride ?? keyFolder.appendingPathComponent(".env")))
+            let key = Self.readKey(from: keyFileOverride ?? keyFolder.appendingPathComponent(".env"))
+            // A development build also looks in the Application Support folder, where the pasted key lives.
+            return (root, key ?? (keyFileOverride == nil ? Self.readKey(from: Self.supportFolder.appendingPathComponent(".env")) : nil))
         }.value
     }
 

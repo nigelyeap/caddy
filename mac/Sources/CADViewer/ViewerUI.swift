@@ -55,7 +55,7 @@ public struct SizeBadge: View {
     }
 }
 
-/// Reset view, see the lines, floor grid, spin, and save a picture.
+/// Reset view, see the lines, floor grid, spin, sizes, ruler, and save a picture.
 public struct ViewerToolbar: View {
     @ObservedObject private var controller: ViewerController
 
@@ -67,12 +67,15 @@ public struct ViewerToolbar: View {
             toggle("Show triangles", "cube.transparent", $controller.showWireframe)
             toggle("Floor grid", "squareshape.split.3x3", $controller.showGrid)
             toggle("Spin", "rotate.3d", $controller.autoRotate)
+            toggle("Show sizes", "textformat.size", $controller.showSizes)
+            toggle("Show ruler", "ruler", $controller.showRuler)
             button("Save picture", "camera") { _ = try? ModelExport.savePNG(controller.snapshot()) }
         }
         .padding(4)
         .background(.regularMaterial, in: Capsule())
         .overlay(Capsule().strokeBorder(Theme.line))
-        .disabled(controller.info == nil)
+        // A build of many parts has no single size, so ask whether something is showing instead.
+        .disabled(controller.phase != .ready)
         .tutorialTarget(.viewerTools)
     }
 

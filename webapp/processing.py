@@ -5,6 +5,7 @@ or through the Python named by CADDIY_PYTHON in the packaged app.
 Video to mesh reconstruction does not exist yet, so a video input still gets
 the sample cup.
 """
+import json
 import os
 import struct
 import subprocess
@@ -20,12 +21,19 @@ TURNTABLE_EXT = {".txt", ".csv"}
 TURNTABLE_CALIB = BENCH / "turntable_calib.json"
 
 
-def _bench(script, *args):
+def _cmd():
     py = os.environ.get("CADDIY_PYTHON")
-    cmd = [py] if py else ["uv", "run", "--project", str(BENCH), "python"]
-    r = subprocess.run([*cmd, str(BENCH / script), *map(str, args)],
-                       capture_output=True, text=True, timeout=300,
-                       env={k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"})
+    return [py] if py else ["uv", "run", "--project", str(BENCH), "python"]
+
+
+def _env():
+    """Read at call time: app.py sets ANTHROPIC_API_KEY after this module is imported."""
+    return {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+
+
+def _bench(script, *args):
+    r = subprocess.run([*_cmd(), str(BENCH / script), *map(str, args)],
+                       capture_output=True, text=True, timeout=300, env=_env())
     if r.returncode:
         # edit.py prints the technical reason on stdout and only the kid message on stderr, so keep both.
         raise RuntimeError((r.stdout[-400:] + "\n" + r.stderr)[-600:])
@@ -51,6 +59,56 @@ def apply_edit(stl_in, instruction, stl_out):
     _bench("edit.py", stl_in, instruction, stl_out)
 
 
+# ---------- many parts ----------
+# The webapp env has no trimesh or manifold3d, so mesh ops go to one long-lived `parts.py --serve` worker
+# in the bench env. That pays the ~0.4 s start once. Callers hold app.edit_lock, so one op at a time.
+_worker = None
+
+
+def parts_op(req):
+    """One parts.py op. Returns its JSON. A kid-facing refusal raises ValueError, a crash RuntimeError."""
+    global _worker
+    if _worker is None or _worker.poll() is not None:
+        _worker = subprocess.Popen([*_cmd(), str(BENCH / "parts.py"), "--serve"], text=True, env=_env(),
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    # ponytail: no timeout on readline, ops are a few seconds. Add a watchdog thread if one ever hangs.
+    _worker.stdin.write(json.dumps(req) + "\n")
+    _worker.stdin.flush()
+    line = _worker.stdout.readline()
+    if not line:
+        _worker = None
+        raise RuntimeError(f"parts worker stopped during {req.get('op')}")
+    out = json.loads(line)
+    if "error" in out:
+        raise ValueError(out["error"])
+    return out
+
+
+def _yaw(deg):
+    a = np.radians(deg)
+    return np.array([[np.cos(a), -np.sin(a), 0], [np.sin(a), np.cos(a), 0], [0, 0, 1]], np.float32)
+
+
+def placed(part, base_dir):
+    """A part's triangles in the build frame: turn about z by yaw, then move its bottom centre to x, y, z."""
+    tris = _read_stl(os.path.join(base_dir, part["file"]))
+    return tris @ _yaw(part.get("yaw", 0)).T + np.array([part["x"], part["y"], part["z"]], np.float32)
+
+
+def bake(parts, base_dir):
+    """All placed parts as one plain triangle soup. No union, so parts that do not touch still export."""
+    return np.concatenate([placed(p, base_dir) for p in parts])
+
+
+def reseat(path):
+    """Seat an STL in place (centre on x, y, base on z=0). Returns the bottom centre it had."""
+    tris = _read_stl(path)
+    lo, hi = tris.reshape(-1, 3).min(0), tris.reshape(-1, 3).max(0)
+    off = np.array([(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, lo[2]], np.float32)
+    _write_stl(path, tris - off)
+    return off
+
+
 def _cup(n=48, r=20.0, h=40.0, wall=3.0):
     """Open-top cup with a floor, as an (N, 3, 3) array of triangles in mm."""
     a = np.linspace(0, 2 * np.pi, n + 1)
@@ -72,20 +130,22 @@ def _cup(n=48, r=20.0, h=40.0, wall=3.0):
     return np.array(tris, dtype=np.float32)
 
 
-def _write_stl(path, tris):
+def stl_bytes(tris):
     tris = np.asarray(tris, dtype=np.float32)
     normals = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
     normals /= np.linalg.norm(normals, axis=1, keepdims=True) + 1e-12
     rec = np.zeros(len(tris), dtype=[("n", "<f4", 3), ("v", "<f4", (3, 3)), ("a", "<u2")])
     rec["n"], rec["v"] = normals, tris
+    return b"cad-training".ljust(80, b" ") + struct.pack("<I", len(tris)) + rec.tobytes()
+
+
+def _write_stl(path, tris):
     with open(path, "wb") as f:
-        f.write(b"cad-training".ljust(80, b" "))
-        f.write(struct.pack("<I", len(tris)))
-        f.write(rec.tobytes())
+        f.write(stl_bytes(tris))
 
 
 def _read_stl(path):
-    """Binary STL only. That is all this stub writes."""
+    """Binary STL only. That is all this stub, trimesh and parts.py write."""
     with open(path, "rb") as f:
         f.seek(80)
         (count,) = struct.unpack("<I", f.read(4))

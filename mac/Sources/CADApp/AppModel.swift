@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import CADShared
 
 /// The quick changes. Their text matches the canned scripts in bench/edit_cases.py, so they work with no key.
@@ -174,21 +175,102 @@ final class AppModel: ObservableObject {
     @Published var confirmNewScan = false
     @Published var draft = ""
 
+    // MARK: Parts state. All empty for a single model.
+
+    /// A cut line the kid drew, waiting for "Cut here". The plane is in the part's own file frame.
+    struct PendingCut: Equatable { let id: String; let point: [Double]; let normal: [Double] }
+    /// Something for Caddiy to say on the stage. `n` makes the same moment fire twice.
+    struct CaddiyCue: Equatable { let moment: CaddiyMoment; let n: Int }
+
+    /// The parts as the viewer shows them, with local copies of their files.
+    @Published private(set) var partViews: [PartPlacement] = []
+    /// Picked part ids, in the order picked. Two or more can be stuck together.
+    @Published private(set) var selection: [String] = []
+    @Published var tool: PartTool = .look {
+        didSet {
+            guard tool != oldValue else { return }
+            viewer.tool = tool
+            if tool != .cut { pendingCut = nil }
+            if tool == .move { say(.move) } else if tool == .cut { say(.cutHint) }
+            updateHandHints()
+        }
+    }
+    @Published private(set) var pendingCut: PendingCut? {
+        didSet {
+            if pendingCut == nil { viewer.clearCutLine() }
+            updateHandHints()
+        }
+    }
+    /// A parts call is running. Kept apart from isEditing so a quick move does not dim the stage.
+    @Published private(set) var isWorking = false
+    @Published var splitDismissed = false
+    @Published var showAddShelf = false
+    @Published private(set) var cue: CaddiyCue?
+    private var cueCount = 0
+    private var partFiles: [String: URL] = [:]
+    private var selectionSink: AnyCancellable?
+
     private(set) var api: BackendAPI
     let viewer = ViewerControl()
+    /// Turns the model with a hand in front of the camera. A plain let, so the camera's many updates
+    /// redraw only the hand views and never the whole edit screen.
+    let hands = HandControls()
+    /// Where hand pinches go first: the add palette, then the viewer.
+    let handStage = HandStage()
     private var pollTask: Task<Void, Never>?
     private var noteTask: Task<Void, Never>?
     private var shownVersion: String?
     private var savedVersion: String?
-    let builds = BuildLibrary()
+    let builds: BuildLibrary
 
-    init(api: BackendAPI) { self.api = api }
+    init(api: BackendAPI, builds: BuildLibrary? = nil) {
+        self.api = api
+        self.builds = builds ?? BuildLibrary()
+        // A click on the stage picks one part, unless it is already part of a bigger pick.
+        selectionSink = viewer.$selectedPartID.sink { [weak self] id in
+            guard let self else { return }
+            guard let id else { self.selection = []; return }
+            if !self.selection.contains(id) { self.selection = [id] }
+        }
+        viewer.onPartMoved = { [weak self] p in
+            Task { await self?.partAction(.move(id: p.id, x: p.x, y: p.y, z: p.z, yaw: p.yawDegrees), cue: nil) }
+        }
+        viewer.onCut = { [weak self] id, plane in self?.cutDrawn(id, plane) }
+        viewer.onCutDropped = { [weak self] in self?.cancelCut() }
+        handStage.model = self
+        hands.target = handStage
+        updateHandHints()
+    }
+
+    /// The camera bubble's words follow the tool, and a drawn cut waits for a held pinch.
+    private func updateHandHints() {
+        hands.wantsHold = pendingCut != nil
+        hands.hints = if pendingCut != nil {
+            ("Pinch and hold still to cut here.", "Keep still...")
+        } else {
+            switch tool {
+            case .look: ("Pinch and move to turn. Pinch a shape to add it.", "Turning! Open your hand to let go.")
+            case .move: ("Pinch a part and move to slide it.", "Moving! Open your hand to put it down.")
+            case .turn: ("Pinch a part and move sideways to turn it.", "Turning the part! Open your hand to stop.")
+            case .cut: ("Pinch and draw a line across a part.", "Drawing! Open your hand to finish the line.")
+            }
+        }
+    }
 
     var isEditing: Bool { editStartedAt != nil }
     var hasModel: Bool { state?.status == .ready && !(state?.versions.isEmpty ?? true) }
     var canUndo: Bool { connected && !isEditing && (state?.versions.count ?? 0) > 1 && step == .edit }
     var canRedo: Bool { connected && !isEditing && !(state?.redo.isEmpty ?? true) && step == .edit }
     var canSave: Bool { connected && hasModel && step == .edit && !isEditing }
+
+    var parts: [ModelPart] { state?.parts ?? [] }
+    var putAway: [ModelPart] { state?.putAway ?? [] }
+    var hasParts: Bool { !parts.isEmpty }
+    /// The one picked part. Plain-language changes go to it.
+    var selectedPart: ModelPart? { selection.count == 1 ? parts.first { $0.id == selection[0] } : nil }
+    var canChangeParts: Bool { connected && hasModel && step == .edit && !isEditing && !isWorking }
+    /// Right after a scan, before any change, offer to break it into pieces.
+    var offerSplit: Bool { hasModel && !hasParts && !splitDismissed && state?.versions.count == 1 }
 
     // MARK: Helper life
 
@@ -275,6 +357,7 @@ final class AppModel: ObservableObject {
         processing = Processing(source: source)
         step = .cleanUp
         lastChangeWasEdit = false
+        resetParts()
         pollTask = Task {
             defer { if deleteAfter { try? FileManager.default.removeItem(at: url) } }
             do {
@@ -336,16 +419,29 @@ final class AppModel: ObservableObject {
         DispatchQueue.main.async { (NSApp.keyWindow?.firstResponder as? NSTextView)?.moveToEndOfDocument(nil) }
     }
 
+    /// The running change, so tests can wait for it.
+    private(set) var editTask: Task<Void, Never>?
+
     func send(_ text: String) {
         let instruction = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !isEditing else { show(Note(kind: .info, text: "The last change is still running.")); return }
         guard !instruction.isEmpty else { show(Note(kind: .info, text: "Describe a change first, or pick a quick change.")); return }
+        guard !isWorking else { show(Note(kind: .info, text: "One moment, I am still moving parts.")); return }
+        var part: String?
+        if hasParts {
+            guard let p = selectedPart else {
+                show(Note(kind: .info, text: "Pick a part first. Click it on the stage or in My parts."))
+                say(.pickPart)
+                return
+            }
+            part = p.id
+        }
         note = nil
         editStartedAt = Date()
-        Task {
+        editTask = Task {
             defer { editStartedAt = nil }
             do {
-                state = try await api.edit(instruction: instruction)
+                state = try await api.edit(instruction: instruction, part: part)
                 draft = ""
                 await refreshModel(afterEdit: true)
                 show(Note(kind: .good, text: "Change applied. Check the model, then save it."), fadeAfter: 6)
@@ -384,36 +480,240 @@ final class AppModel: ObservableObject {
     }
 
     /// Keeps the current build in My builds. `quiet` skips the thank-you note.
-    @discardableResult func saveBuild(quiet: Bool = false) -> Bool {
-        guard let stl = stlURL, hasModel else { return false }
+    /// A build of parts is baked by the helper: one merged STL plus a sidecar, so it reopens as parts.
+    @discardableResult func saveBuild(quiet: Bool = false) async -> Bool {
+        guard hasModel else { return false }
         let last = state?.versions.last?.instruction ?? ""
         let words = last.isEmpty || last == "Your scan" ? "My scan" : String(last.prefix(30))
+        let name = words.prefix(1).uppercased() + words.dropFirst()
         do {
-            try builds.save(stl, name: words.prefix(1).uppercased() + words.dropFirst())
+            if hasParts {
+                _ = try await api.parts(.bake(path: builds.newURL(name: name).path))
+                builds.reload()
+            } else {
+                guard let stl = stlURL else { return false }
+                try builds.save(stl, name: name)
+            }
             savedVersion = shownVersion
             if !quiet { show(Note(kind: .good, text: "Saved to My builds."), fadeAfter: 6) }
             return true
         } catch {
-            show(Note(kind: .bad, text: "The build could not be saved.", detail: "\(error)"))
+            let f = error as? APIFailure
+            show(Note(kind: .bad, text: f?.message ?? "The build could not be saved.", detail: f?.detail ?? "\(error)"))
             return false
         }
     }
 
     /// Back to the start screen. A build with unsaved changes goes into My builds first, so nothing is lost.
-    func goHome() {
-        if hasModel && savedVersion != shownVersion { saveBuild(quiet: true) }
+    func goHome() async {
+        if hasModel && savedVersion != shownVersion { await saveBuild(quiet: true) }
         let kept = hasModel
         newScan()
         if kept { show(Note(kind: .good, text: "Your build is saved in My builds."), fadeAfter: 8) }
     }
 
-    func openBuild(_ item: BuildLibrary.Item) {
-        guard !isEditing else { return }
-        if hasModel && savedVersion != shownVersion { saveBuild(quiet: true) }
-        upload(item.url, source: ScanFiles.source(item.url))
+    func openBuild(_ item: BuildLibrary.Item) async {
+        guard !isEditing, !isWorking else { return }
+        if hasModel && savedVersion != shownVersion { await saveBuild(quiet: true) }
+        guard item.sidecar != nil else { upload(item.url, source: ScanFiles.source(item.url)); return }
+        // A build of parts: the helper reads the sidecar and hands back the parts.
+        pollTask?.cancel()
+        processing = nil
+        note = nil
+        do {
+            let s = try await api.parts(.open(path: item.url.path))
+            resetParts()
+            state = s
+            await refreshModel(afterEdit: false)
+            savedVersion = shownVersion
+            step = .edit
+        } catch {
+            let f = error as? APIFailure
+            show(Note(kind: .bad, text: f?.message ?? "That build would not open.", detail: f?.detail ?? "\(error)"))
+        }
+    }
+
+    // MARK: Parts
+
+    func split() async { await partAction(.split, cue: .split) }
+    func add(_ shape: String) async {
+        showAddShelf = false
+        await partAction(.add(name: shape), cue: .added)
+    }
+    /// Adds a shape at a floor spot, STL x and y in mm. Hands drop shapes this way.
+    func add(_ shape: String, at spot: SIMD2<Double>) async {
+        await partAction(.add(name: shape, x: spot.x, y: spot.y), cue: .added)
+    }
+    /// Picks a tool from the left bar. A single model becomes one part first, so Move and Cut have something to work on.
+    func chooseTool(_ t: PartTool) async {
+        if t != .look { await wrapIfNeeded() }
+        tool = t
+    }
+    private func wrapIfNeeded() async {
+        guard !hasParts, canChangeParts, await partAction(.wrap, cue: nil) else { return }
+        if let only = parts.first { select(only.id) }
+    }
+    /// Turns the picked part about its own centre. Positive is clockwise seen from above.
+    func turnSelected(_ degrees: Double) async {
+        await wrapIfNeeded()
+        guard let p = selectedPart else { say(.pickPart); return }
+        var yaw = (p.yaw - degrees).truncatingRemainder(dividingBy: 360)
+        if yaw < 0 { yaw += 360 }
+        await partAction(.move(id: p.id, x: p.x, y: p.y, z: p.z, yaw: yaw), cue: nil)
+    }
+    /// Tips the picked part as seen on screen. Positive leans the top toward you, or to the right when `sideways`.
+    /// Front/back turns about screen right. Sideways turns about the axis pointing into the screen (right plus 90).
+    func tipSelected(_ degrees: Double, sideways: Bool = false) async {
+        await wrapIfNeeded()
+        guard let p = selectedPart else { say(.pickPart); return }
+        await partAction(.tip(id: p.id, axis: screenAzimuth(sideways ? 90 : 0), degrees: degrees), cue: nil)
+    }
+    /// Stretches the picked part by these factors along x, y and z.
+    func resizeSelected(sx: Double, sy: Double, sz: Double) async {
+        await wrapIfNeeded()
+        guard let p = selectedPart else { say(.pickPart); return }
+        await partAction(.resize(id: p.id, sx: sx, sy: sy, sz: sz), cue: nil)
+    }
+    /// Flips the picked part as seen on screen. Left to right uses screen right, front to back uses right plus 90.
+    func mirrorSelected(sideways: Bool) async {
+        await wrapIfNeeded()
+        guard let p = selectedPart else { say(.pickPart); return }
+        await partAction(.mirror(id: p.id, axis: screenAzimuth(sideways ? 0 : 90)), cue: nil)
+    }
+    func layFlatSelected() async {
+        await wrapIfNeeded()
+        guard let p = selectedPart else { say(.pickPart); return }
+        await partAction(.layFlat(id: p.id), cue: nil)
+    }
+    private func screenAzimuth(_ extra: Double) -> Double {
+        (viewer.rightAzimuthDegrees + extra).truncatingRemainder(dividingBy: 360)
+    }
+    /// Width (x), depth (y) and height (z) of the picked part in mm. A single model gives its whole size.
+    var selectedSize: SIMD3<Double>? {
+        if let p = selectedPart, let url = partViews.first(where: { $0.id == p.id })?.url {
+            return partSizeMM(url: url, yaw: p.yaw)
+        }
+        guard !hasParts, let stlURL else { return nil }
+        return partSizeMM(url: stlURL, yaw: 0)
+    }
+    /// Raises the picked part by `mm` (negative lowers it). Never below the floor.
+    func liftSelected(_ mm: Double) async {
+        await wrapIfNeeded()
+        guard let p = selectedPart else { say(.pickPart); return }
+        await partAction(.move(id: p.id, x: p.x, y: p.y, z: max(0, p.z + mm), yaw: p.yaw), cue: nil)
+    }
+    func dropSelected() async {
+        guard let p = selectedPart else { say(.pickPart); return }
+        await partAction(.move(id: p.id, x: p.x, y: p.y, z: 0, yaw: p.yaw), cue: nil)
+    }
+    func copySelected() async {
+        await wrapIfNeeded()
+        guard let p = selectedPart else { say(.pickPart); return }
+        await partAction(.duplicate(id: p.id), cue: .copied)
+    }
+    func putAway(_ id: String) async { await partAction(.delete(id: id), cue: .putAway) }
+    func bringBack(_ id: String) async { await partAction(.restore(id: id), cue: .added) }
+    func joinSelected() async {
+        guard selection.count >= 2 else { say(.pickPart); return }
+        await partAction(.join(ids: selection), cue: .joined)
+    }
+
+    /// Picks a part from the My parts list. `adding` toggles it in a bigger pick, for Stick together.
+    func select(_ id: String, adding: Bool = false) {
+        if adding {
+            if let i = selection.firstIndex(of: id) { selection.remove(at: i) } else { selection.append(id) }
+        } else {
+            selection = [id]
+        }
+        viewer.selectedPartID = selection.last
+    }
+
+    func cutDrawn(_ id: String, _ plane: CutPlaneValue) {
+        func list(_ v: SIMD3<Float>) -> [Double] { [Double(v.x), Double(v.y), Double(v.z)] }
+        select(id)
+        pendingCut = PendingCut(id: id, point: list(plane.point), normal: list(plane.normal))
+        say(.cutReady)
+    }
+
+    func confirmCut() async {
+        guard let c = pendingCut else { return }
+        pendingCut = nil
+        await partAction(.cut(id: c.id, point: c.point, normal: c.normal), cue: .cut)
+    }
+
+    func cancelCut() { pendingCut = nil }
+
+    /// Runs one parts call and shows the result. A move skips the busy check so a quick drag is never lost.
+    @discardableResult func partAction(_ action: PartAction, cue moment: CaddiyMoment?) async -> Bool {
+        let isMove = if case .move = action { true } else { false }
+        guard !isEditing, isMove || !isWorking else { return false }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let s = try await api.parts(action)
+            state = s
+            await refreshModel(afterEdit: false)
+            if let moment { say(moment) }
+            if let n = s.note { show(Note(kind: .info, text: n), fadeAfter: 8) }
+            return true
+        } catch let f as APIFailure where f.isConnectionLost {
+            return false
+        } catch {
+            let f = error as? APIFailure
+            show(Note(kind: .bad, text: f?.message ?? "That did not work. Try again.", detail: f?.detail ?? "\(error)"))
+            say(.partFailed)
+            // ponytail: a refused move stays where it was dropped on screen until the next change reloads parts.
+            if let s = try? await api.status() { state = s; await refreshModel(afterEdit: false) }
+            return false
+        }
+    }
+
+    private func say(_ moment: CaddiyMoment) {
+        cueCount += 1
+        cue = CaddiyCue(moment: moment, n: cueCount)
+    }
+
+    private func resetParts() {
+        selection = []
+        viewer.selectedPartID = nil
+        pendingCut = nil
+        splitDismissed = false
+        showAddShelf = false
+        tool = .look
+        partViews = []
+        for url in partFiles.values { try? FileManager.default.removeItem(at: url) }
+        partFiles = [:]
+    }
+
+    /// Fetches any part files not yet on disk. Keeps the old list if a download fails.
+    private func refreshParts() async {
+        let list = parts
+        guard !list.isEmpty else {
+            if !partViews.isEmpty { partViews = [] }
+            if !selection.isEmpty { selection = [] }
+            return
+        }
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("CADDIY/parts", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        var views: [PartPlacement] = []
+        for p in list {
+            // ponytail: part file names are taken as never reused within one helper session.
+            var url = partFiles[p.file]
+            if url == nil {
+                let fresh = dir.appendingPathComponent(UUID().uuidString + ".stl")
+                guard (try? await api.downloadPart(file: p.file, to: fresh)) != nil else { return }
+                partFiles[p.file] = fresh
+                url = fresh
+            }
+            views.append(PartPlacement(id: p.id, url: url!, x: p.x, y: p.y, z: p.z, yawDegrees: p.yaw))
+        }
+        if views != partViews { partViews = views }
+        let kept = selection.filter { id in list.contains { $0.id == id } }
+        if kept != selection { selection = kept; viewer.selectedPartID = kept.last }
     }
 
     func newScan() {
+        resetParts()
         confirmNewScan = false
         stlURL = nil
         state = nil
@@ -437,7 +737,10 @@ final class AppModel: ObservableObject {
 
     /// Downloads the current version to a local file the viewer can read. Skips it when nothing changed.
     private func refreshModel(afterEdit: Bool) async {
-        guard let current = state?.versions.last?.file else { return }
+        await refreshParts()
+        guard let last = state?.versions.last?.file else { return }
+        // A move changes no version, so the part spots are part of what is on screen.
+        let current = last + parts.map { "|\($0.file)@\($0.x),\($0.y),\($0.z),\($0.yaw)" }.joined()
         if current == shownVersion && stlURL != nil { return }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("CADDIY", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

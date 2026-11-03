@@ -2,18 +2,21 @@
 import json
 import math
 import os
+import re
 import shutil
 import signal
 import subprocess
 import sys
 import threading
 import time
+import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 import cv2
 import numpy as np
 from fastapi import FastAPI, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -132,15 +135,20 @@ def _save():
 
 try:
     _saved = json.loads(STATE_FILE.read_text())
-    if all((DATA / v["file"]).exists() for v in _saved["versions"] + _saved["redo"]) and _saved["versions"]:
+    files = [f for v in _saved["versions"] + _saved["redo"]
+             for f in [v["file"]] + [p["file"] for p in v.get("parts", []) + v.get("putAway", [])]]
+    if all((DATA / f).exists() for f in files) and _saved["versions"]:
         state.update(status="ready", **_saved)
 except (OSError, ValueError, KeyError):
     pass
 
 
 def _snapshot():
-    """The one state shape every state endpoint returns. Call with state_lock held."""
-    return {**state, "versions": list(state["versions"]), "redo": list(state["redo"]), "engine": ENGINE_NAME}
+    """The one state shape every state endpoint returns. Call with state_lock held.
+    parts and putAway mirror the current version. Empty parts means the single model in versions[-1].file."""
+    cur = state["versions"][-1] if state["versions"] else {}
+    return {**state, "versions": list(state["versions"]), "redo": list(state["redo"]), "engine": ENGINE_NAME,
+            "parts": list(cur.get("parts", [])), "putAway": list(cur.get("putAway", [])), "note": None}
 
 
 def _fail(code, message, detail=None):
@@ -240,6 +248,7 @@ def upload_scan(video: UploadFile):
 
 class Edit(BaseModel):
     instruction: str
+    part: str | None = None
 
 
 @app.post("/api/edit")
@@ -254,17 +263,31 @@ def edit(body: Edit):
         with state_lock:
             if not state["versions"]:
                 _fail(409, "There is no model yet. Scan something first.")
-            cur = DATA / state["versions"][-1]["file"]
+            parts, away = _scene()
+            part = None
+            if parts:
+                part = next((p for p in parts if p["id"] == body.part), None)
+                if part is None:
+                    _fail(400, "Pick a part first.")
+            cur = DATA / (part["file"] if part else state["versions"][-1]["file"])
             # Unique name so a redo entry is never overwritten.
-            out = DATA / f"v{time.time_ns()}.stl"
+            out = DATA / f"{'p' if part else 'v'}{time.time_ns()}.stl"
         try:
             processing.apply_edit(str(cur), text, str(out))
+            if part:
+                # Keep the part where it was: x, y follow the new centre, z stays on what it rested on.
+                off = processing.reseat(str(out))
+                dx, dy, _ = processing._yaw(part["yaw"]) @ [off[0], off[1], 0]
+                new = {**part, "file": out.name, "x": part["x"] + float(dx), "y": part["y"] + float(dy)}
         except Exception as e:
             _fail(500, *_friendly(e))
         with state_lock:
-            state["versions"].append({"file": out.name, "instruction": text})
-            state["redo"] = []
-            _save()
+            if part:
+                _commit([new if p["id"] == part["id"] else p for p in parts], away, text)
+            else:
+                state["versions"].append({"file": out.name, "instruction": text})
+                state["redo"] = []
+                _save()
             return _snapshot()
     finally:
         edit_lock.release()
@@ -300,9 +323,384 @@ def model():
     with state_lock:
         if not state["versions"]:
             _fail(404, "There is no model yet. Scan something first.")
+        parts, _ = _scene()
         path = DATA / state["versions"][-1]["file"]
+    if parts:
+        return Response(processing.stl_bytes(processing.bake(parts, DATA)), media_type="model/stl",
+                        headers={"Cache-Control": "no-store", "Content-Disposition": 'attachment; filename="model.stl"'})
     return FileResponse(path, media_type="model/stl", filename="model.stl",
                         headers={"Cache-Control": "no-store"})
+
+
+# ---------- Many parts in one build ----------
+# A part is {"id", "name", "file", "x", "y", "z", "yaw"}. file is a seated p<time_ns>.stl that is never
+# rewritten or deleted, so undo and redo only swap JSON. Each version may carry "parts" and "putAway".
+
+PART_FILE = re.compile(r"p\d+\.stl")
+GAP = 10.0  # mm between parts laid out side by side
+
+
+def _scene():
+    """Current (parts, putAway) as fresh lists. Call with state_lock held."""
+    cur = state["versions"][-1] if state["versions"] else {}
+    return [dict(p) for p in cur.get("parts", [])], [dict(p) for p in cur.get("putAway", [])]
+
+
+def _commit(parts, away, instruction):
+    """Append one undoable version. Call with state_lock held. Returns the snapshot."""
+    state["versions"].append({"file": state["versions"][-1]["file"], "instruction": instruction,
+                              "parts": parts, "putAway": away})
+    state["redo"] = []
+    _save()
+    return _snapshot()
+
+
+def _new_part(name, file, x=0.0, y=0.0, z=0.0, yaw=0.0):
+    return {"id": uuid.uuid4().hex[:8], "name": name, "file": file,
+            "x": float(x), "y": float(y), "z": float(z), "yaw": float(yaw)}
+
+
+def _find(parts, pid):
+    p = next((p for p in parts if p["id"] == pid), None)
+    if p is None:
+        _fail(404, "That part is not in the build any more.")
+    return p
+
+
+def _width(file):
+    tris = processing._read_stl(DATA / file).reshape(-1, 3)
+    return float(tris[:, 0].max() - tris[:, 0].min())
+
+
+def _right_edge(parts):
+    """Largest x any placed part reaches, or None when there are none."""
+    return max((float(processing.placed(p, DATA)[..., 0].max()) for p in parts), default=None)
+
+
+def _ready_with_model():
+    if not state["versions"]:
+        _fail(409, "There is no model yet. Scan something first.")
+
+
+@contextmanager
+def _mesh_work():
+    """Hold edit_lock for a parts.py op, and turn its errors into the usual error body."""
+    if not edit_lock.acquire(blocking=False):
+        _fail(409, "Still working on the last change. Wait a moment.")
+    try:
+        yield
+    except ValueError as e:  # parts.py refusals are already plain words for the kid
+        _fail(400, str(e))
+    except subprocess.SubprocessError as e:
+        _fail(500, *_friendly(e))
+    except RuntimeError as e:
+        _fail(500, "That did not work. Try again.", str(e)[-500:])
+    finally:
+        edit_lock.release()
+
+
+@app.get("/api/part/{file}")
+def part_file(file: str):
+    path = DATA / file
+    if not PART_FILE.fullmatch(file) or not path.exists():
+        _fail(404, "That part file is missing.")
+    return FileResponse(path, media_type="model/stl",
+                        headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
+@app.post("/api/parts/split")
+def parts_split(body: dict | None = None):
+    with _mesh_work():
+        with state_lock:
+            _ready_with_model()
+            if _scene()[0]:
+                _fail(409, "This build is already in parts.")
+            src = DATA / state["versions"][-1]["file"]
+        found = processing.parts_op({"op": "split", "in": str(src), "out_dir": str(DATA)})["parts"]
+        with state_lock:
+            if len(found) < 2:
+                return {**_snapshot(), "note": "It is one piece"}
+            widths = [_width(p["file"]) for p in found]
+            x = -(sum(widths) + GAP * (len(widths) - 1)) / 2
+            parts = []
+            for i, (p, w) in enumerate(zip(found, widths)):
+                parts.append(_new_part(f"Part {i + 1}", p["file"], x + w / 2))
+                x += w + GAP
+            return _commit(parts, [], f"Split into {len(parts)} parts")
+
+
+@app.post("/api/parts/wrap")
+def parts_wrap(body: dict | None = None):
+    """Turn a single model into one part, so it can be moved, copied and cut. No-op when it already is parts."""
+    with _mesh_work():
+        with state_lock:
+            _ready_with_model()
+            parts, away = _scene()
+            if parts:
+                return _snapshot()
+            first = DATA / f"p{time.time_ns()}.stl"
+            shutil.copyfile(DATA / state["versions"][-1]["file"], first)
+            return _commit([_new_part("Model", first.name, *processing.reseat(str(first)))], away, "Ready to move and cut")
+
+
+class Tip(BaseModel):
+    id: str
+    degrees: float
+    axis: str | float = "x"  # "x", "y", or a flat azimuth in degrees (0 = x, 90 = y)
+
+
+@app.post("/api/parts/rotate")
+def parts_rotate(body: Tip):
+    """Tip a part over the x (or y) axis. The mesh is rewritten as a new immutable file, so undo just points back."""
+    with _mesh_work():
+        with state_lock:
+            parts, _ = _scene()
+            p = _find(parts, body.id)
+            src, yaw = DATA / p["file"], p["yaw"]
+        out = processing.parts_op({"op": "rotate", "in": str(src), "out_dir": str(DATA), "axis": body.axis,
+                                   "degrees": body.degrees, "yaw": yaw})
+        with state_lock:
+            parts, away = _scene()
+            p = _find(parts, body.id)
+            p["file"] = out["file"]
+            return _commit(parts, away, f"Tipped {p['name']}")
+
+
+def _reshape(pid, req, verb):
+    """Run a parts.py op on one part as a new mesh file and commit it as one undoable version.
+    The op may return yaw and a shift for x, y. A file of None means nothing changed."""
+    with state_lock:
+        p = _find(_scene()[0], pid)
+        src, yaw = DATA / p["file"], p["yaw"]
+    out = processing.parts_op({**req, "in": str(src), "out_dir": str(DATA), "yaw": yaw})
+    with state_lock:
+        parts, away = _scene()
+        p = _find(parts, pid)
+        if out["file"] is None:
+            return _snapshot()
+        dx, dy = out.get("shift", (0, 0))
+        p.update(file=out["file"], x=p["x"] + dx, y=p["y"] + dy, yaw=float(out.get("yaw", p["yaw"])))
+        return _commit(parts, away, f"{verb} {p['name']}")
+
+
+class Resize(BaseModel):
+    id: str
+    sx: float
+    sy: float
+    sz: float  # factors in world axes, 0.05 to 20
+
+
+@app.post("/api/parts/resize")
+def parts_resize(body: Resize):
+    with _mesh_work():
+        return _reshape(body.id, {"op": "resize", "sx": body.sx, "sy": body.sy, "sz": body.sz}, "Resized")
+
+
+class Mirror(BaseModel):
+    id: str
+    axis: str | float = "x"  # mirror plane normal: "x", "y", or a flat azimuth in degrees
+
+
+@app.post("/api/parts/mirror")
+def parts_mirror(body: Mirror):
+    with _mesh_work():
+        return _reshape(body.id, {"op": "mirror", "axis": body.axis}, "Mirrored")
+
+
+class LayFlat(BaseModel):
+    id: str
+
+
+@app.post("/api/parts/layflat")
+def parts_layflat(body: LayFlat):
+    with _mesh_work():
+        return _reshape(body.id, {"op": "layflat"}, "Laid flat")
+
+
+class Move(BaseModel):
+    id: str
+    x: float
+    y: float
+    z: float
+    yaw: float
+
+
+@app.post("/api/parts/move")
+def parts_move(body: Move):
+    _busy_check()
+    with state_lock:
+        parts, away = _scene()
+        p = _find(parts, body.id)
+        p.update(x=body.x, y=body.y, z=body.z, yaw=body.yaw)
+        return _commit(parts, away, f"Moved {p['name']}")
+
+
+class PartId(BaseModel):
+    id: str
+
+
+@app.post("/api/parts/duplicate")
+def parts_duplicate(body: PartId):
+    _busy_check()
+    with state_lock:
+        parts, away = _scene()
+        p = _find(parts, body.id)
+        c = _new_part(p["name"], p["file"], 0, p["y"], p["z"], p["yaw"])
+        xs = processing.placed(c, DATA)[..., 0]  # copy goes 5 mm clear of the right-most part
+        c["x"] = float(_right_edge(parts) + 5 - xs.min())
+        parts.append(c)
+        return _commit(parts, away, f"Copied {p['name']}")
+
+
+@app.post("/api/parts/delete")
+def parts_delete(body: PartId):
+    _busy_check()
+    with state_lock:
+        parts, away = _scene()
+        p = _find(parts, body.id)
+        parts.remove(p)
+        return _commit(parts, away + [p], f"Put away {p['name']}")
+
+
+@app.post("/api/parts/restore")
+def parts_restore(body: PartId):
+    _busy_check()
+    with state_lock:
+        parts, away = _scene()
+        p = _find(away, body.id)
+        away.remove(p)
+        return _commit(parts + [p], away, f"Brought back {p['name']}")
+
+
+class AddShape(BaseModel):
+    name: str
+    # Where to put it, bottom centre in mm. Left out, it goes to the right of the other parts.
+    x: float | None = None
+    y: float | None = None
+
+
+@app.post("/api/parts/add")
+def parts_add(body: AddShape):
+    with _mesh_work():
+        with state_lock:
+            _ready_with_model()
+        out = DATA / f"p{time.time_ns()}.stl"
+        processing.parts_op({"op": "library", "name": body.name, "out": str(out)})
+        with state_lock:
+            parts, away = _scene()
+            if not parts:  # first add to a single model: that model becomes part one, left where it was
+                first = DATA / f"p{time.time_ns()}.stl"
+                shutil.copyfile(DATA / state["versions"][-1]["file"], first)
+                parts = [_new_part("Model", first.name, *processing.reseat(str(first)))]
+            if body.x is not None:
+                x, y = body.x, body.y or 0.0
+            else:
+                edge = _right_edge(parts)
+                x, y = (0.0 if edge is None else edge + GAP + _width(out.name) / 2), 0.0
+            parts.append(_new_part(body.name.capitalize(), out.name, x, y))
+            return _commit(parts, away, f"Added a {body.name}")
+
+
+class Join(BaseModel):
+    ids: list[str]
+
+
+@app.post("/api/parts/join")
+def parts_join(body: Join):
+    with _mesh_work():
+        with state_lock:
+            parts, away = _scene()
+            picked = [_find(parts, i) for i in dict.fromkeys(body.ids)]
+        r = processing.parts_op({"op": "join", "parts": picked, "out_dir": str(DATA)})["parts"][0]
+        with state_lock:
+            ids = {p["id"] for p in picked}
+            rest = [p for p in parts if p["id"] not in ids]
+            joined = _new_part(picked[0]["name"], r["file"], *r["offset"])
+            return _commit(rest + [joined], away, f"Joined {len(picked)} parts")
+
+
+class Cut(BaseModel):
+    id: str
+    point: list[float]
+    normal: list[float]
+
+
+@app.post("/api/parts/cut")
+def parts_cut(body: Cut):
+    if len(body.point) != 3 or len(body.normal) != 3 or not any(body.normal):
+        _fail(400, "Draw a longer line.")
+    with _mesh_work():
+        with state_lock:
+            parts, away = _scene()
+            p = _find(parts, body.id)
+        found = processing.parts_op({"op": "cut", "in": str(DATA / p["file"]), "out_dir": str(DATA),
+                                     "point": body.point, "normal": body.normal})["parts"]
+        # Each piece's offset is its bottom centre in the part's frame. Turn it into the build,
+        # then nudge it 3 mm along the cut normal, away from the other side.
+        rot = processing._yaw(p["yaw"])
+        n = rot @ (np.asarray(body.normal, np.float32) / np.linalg.norm(body.normal))
+        pieces = []
+        for q in found:
+            pos = rot @ np.asarray(q["offset"], np.float32) + [p["x"], p["y"], p["z"]]
+            pos += (3 if q["side"] == "+" else -3) * n
+            pieces.append(_new_part(p["name"], q["file"], pos[0], pos[1], max(float(pos[2]), 0.0), p["yaw"]))
+        with state_lock:
+            i = parts.index(p)
+            return _commit(parts[:i] + pieces + parts[i + 1:], away, f"Cut {p['name']}")
+
+
+class BakePath(BaseModel):
+    path: str
+
+
+def _sidecar(path):
+    p = Path(path)
+    if not p.is_absolute() or p.suffix.lower() != ".stl":
+        _fail(400, "Give a full path to an .stl file.")
+    return p, Path(str(p) + ".parts")
+
+
+@app.post("/api/parts/bake")
+def parts_bake(body: BakePath):
+    """Write the merged build to path, and path.parts/ with parts.json and the part files to reopen it."""
+    stl, side = _sidecar(body.path)
+    with state_lock:
+        _ready_with_model()
+        parts, away = _scene()
+        snap = _snapshot()
+    if not parts:
+        _fail(409, "This build has no parts. Save the model instead.")
+    side.mkdir(parents=True, exist_ok=True)
+    stl.write_bytes(processing.stl_bytes(processing.bake(parts, DATA)))
+    for f in {p["file"] for p in parts + away}:
+        shutil.copyfile(DATA / f, side / f)
+    (side / "parts.json").write_text(json.dumps({"parts": parts, "putAway": away}, indent=1))
+    return snap
+
+
+@app.post("/api/parts/open")
+def parts_open(body: BakePath):
+    """Start a new build from a file saved by /api/parts/bake."""
+    _busy_check()
+    stl, side = _sidecar(body.path)
+    try:
+        saved = json.loads((side / "parts.json").read_text())
+        parts, away = saved["parts"], saved.get("putAway", [])
+        for p in parts + away:
+            if not PART_FILE.fullmatch(p["file"]):
+                raise ValueError(p["file"])
+            p.update(id=str(p["id"]), name=str(p["name"]), **{k: float(p[k]) for k in ("x", "y", "z", "yaw")})
+            if not (DATA / p["file"]).exists():  # same name means same bytes, files are never rewritten
+                shutil.copyfile(side / p["file"], DATA / p["file"])
+        model_file = f"v{time.time_ns()}.stl"
+        shutil.copyfile(stl, DATA / model_file)
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        _fail(400, "That saved build could not be opened.", str(e)[-500:])
+    with state_lock:
+        state.update(status="ready", error=None, detail=None, sample=False, redo=[], started=None,
+                     versions=[{"file": model_file, "instruction": "Opened build", "parts": parts, "putAway": away}])
+        _save()
+        return _snapshot()
 
 
 app.mount("/", StaticFiles(directory=HERE / "static", html=True), name="static")

@@ -67,9 +67,50 @@ public final class HTTPBackendAPI: BackendAPI, @unchecked Sendable {
     }
 
     public func edit(instruction: String) async throws -> ModelState {
-        var r = request("POST", "/api/edit", timeout: Self.editTimeout)
+        try await edit(instruction: instruction, part: nil)
+    }
+
+    public func edit(instruction: String, part: String?) async throws -> ModelState {
+        var body: [String: Any] = ["instruction": instruction]
+        if let part { body["part"] = part }
+        return try await post("/api/edit", body, timeout: Self.editTimeout)
+    }
+
+    public func parts(_ action: PartAction) async throws -> ModelState {
+        let (path, body) = Self.route(action)
+        // Split, join, cut and bake do real mesh work, so they get the long timeout.
+        return try await post(path, body, timeout: Self.editTimeout)
+    }
+
+    static func route(_ a: PartAction) -> (String, [String: Any]) {
+        switch a {
+        case .split: ("/api/parts/split", [:])
+        case .wrap: ("/api/parts/wrap", [:])
+        case let .move(id, x, y, z, yaw): ("/api/parts/move", ["id": id, "x": x, "y": y, "z": z, "yaw": yaw])
+        case let .tip(id, axis, degrees): ("/api/parts/rotate", ["id": id, "degrees": degrees, "axis": axis])
+        case let .resize(id, sx, sy, sz): ("/api/parts/resize", ["id": id, "sx": sx, "sy": sy, "sz": sz])
+        case let .mirror(id, axis): ("/api/parts/mirror", ["id": id, "axis": axis])
+        case .layFlat(let id): ("/api/parts/layflat", ["id": id])
+        case .duplicate(let id): ("/api/parts/duplicate", ["id": id])
+        case .delete(let id): ("/api/parts/delete", ["id": id])
+        case .restore(let id): ("/api/parts/restore", ["id": id])
+        case let .add(name, x, y):
+            ("/api/parts/add", ["name": name].merging(x.map { ["x": $0, "y": y ?? 0] } ?? [:]) { a, _ in a })
+        case .join(let ids): ("/api/parts/join", ["ids": ids])
+        case let .cut(id, point, normal): ("/api/parts/cut", ["id": id, "point": point, "normal": normal])
+        case .bake(let path): ("/api/parts/bake", ["path": path])
+        case .open(let path): ("/api/parts/open", ["path": path])
+        }
+    }
+
+    public func downloadPart(file: String, to destination: URL) async throws {
+        try await download(request("GET", "/api/part/" + file), to: destination)
+    }
+
+    private func post(_ path: String, _ body: [String: Any], timeout: TimeInterval) async throws -> ModelState {
+        var r = request("POST", path, timeout: timeout)
         r.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        r.httpBody = try JSONEncoder().encode(["instruction": instruction])
+        r.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
         return try await json(r)
     }
 
@@ -77,7 +118,10 @@ public final class HTTPBackendAPI: BackendAPI, @unchecked Sendable {
     public func redo() async throws -> ModelState { try await json(request("POST", "/api/redo")) }
 
     public func downloadModel(to destination: URL) async throws {
-        let r = request("GET", "/api/model.stl")
+        try await download(request("GET", "/api/model.stl"), to: destination)
+    }
+
+    private func download(_ r: URLRequest, to destination: URL) async throws {
         let (tmp, resp) = try await perform { try await self.session.download(for: r) }
         defer { try? FileManager.default.removeItem(at: tmp) }
         try check(resp, (try? Data(contentsOf: tmp)) ?? Data())

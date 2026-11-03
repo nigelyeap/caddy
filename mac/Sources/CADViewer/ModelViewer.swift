@@ -2,6 +2,7 @@ import AppKit
 import CADShared
 import SceneKit
 import SwiftUI
+import simd
 
 /// Drives one viewer: loading, toggles, camera moves and pictures.
 /// Pass the same controller to `ModelViewer`, `ViewerToolbar` and `SizeBadge`.
@@ -27,6 +28,12 @@ public final class ViewerController: ObservableObject {
     @Published public var showWireframe = false { didSet { stage.wireframe = showWireframe } }
     @Published public var newStage = true { didSet { stage.newStage = newStage } }
     @Published public var showGrid = true { didSet { stage.showGrid = showGrid } }
+    /// Width, depth and height tags on the selected part, or on the only part.
+    @Published public var showSizes = true { didSet { stage.showSizes = showSizes } }
+    /// A mm ruler along the edges of the print bed.
+    @Published public var showRuler = false { didSet { stage.showRuler = showRuler } }
+    /// Lines a dragged part up with the others when it gets close. Holding Command while dragging skips it.
+    @Published public var snapEnabled = true
     /// Keeps turning until the kid touches the model. Off with Reduce Motion.
     @Published public var autoRotate = false { didSet { applySpin() } }
     /// Counts turns of the model for the Caddiy tour (one per drag).
@@ -37,7 +44,52 @@ public final class ViewerController: ObservableObject {
     private var loadedKey: LoadKey?
     private var spunOnce = false
 
+    // MARK: Parts (prototype, not wired into the app screens yet)
+
+    public enum Tool: Sendable { case look, move, cut, turn }
+    /// Look orbits on any drag. Move slides a grabbed part and orbits on empty floor. Cut draws a cut line.
+    /// Turn spins a grabbed part about its upright axis in 15 degree steps and orbits on empty floor.
+    /// Picking and the Move and Cut tools only act on a build loaded with `parts`.
+    @Published public var tool: Tool = .look
+    @Published public var selectedPartID: String? {
+        didSet { if stage.selectedID != selectedPartID { stage.select(selectedPartID) } }
+    }
+    /// The parts as last loaded, with any drags applied.
+    @Published public private(set) var parts: [PartView] = []
+    /// Called on mouse up after a drag really moved a part. The transform is in the STL frame.
+    public var onPartMoved: ((PartView) -> Void)?
+    /// Called when a cut stroke is let go over a part, or with a part selected. The plane is in that
+    /// part's own STL file frame, ready for the server.
+    public var onCut: ((_ partID: String, _ plane: Plane) -> Void)?
+    /// Called when a cut stroke is let go without making a cut, so a cut still waiting goes with its line.
+    public var onCutDropped: (() -> Void)?
+
     public init() {}
+
+    /// Shows a build of many parts. Files already shown are not read again.
+    public func setParts(_ list: [PartView]) async {
+        await load(LoadKey(url: nil, revision: loadedKey?.revision ?? 0, parts: list), highlight: false)
+    }
+
+    func partTurned(_ id: String, to yawDegrees: Double) {
+        guard let i = parts.firstIndex(where: { $0.id == id }) else { return }
+        parts[i].yawDegrees = yawDegrees
+        onPartMoved?(parts[i])
+    }
+
+    func partMoved(_ id: String, to p: SIMD3<Float>) {
+        guard let i = parts.firstIndex(where: { $0.id == id }) else { return }
+        parts[i].setScenePosition(p)
+        stage.fitBounds()
+        onPartMoved?(parts[i])
+    }
+
+    func cut(partID: String, worldPlane: Plane) {
+        guard let node = stage.parts[partID] else { return }
+        // The mesh child's frame is the STL file's own frame (z up, file coordinates).
+        let mesh = node.geometry != nil ? node : (node.childNodes.first ?? node)
+        onCut?(partID, worldPlane.applying(mesh.simdWorldTransform.inverse))
+    }
 
     static var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
 
@@ -53,6 +105,14 @@ public final class ViewerController: ObservableObject {
         orbitCount += 1
         stopAutoRotate()
         stage.orbit(dYaw: Float(-degrees * .pi / 180), dPitch: 0, animated: !Self.reduceMotion)
+    }
+
+    /// Which way screen right points on the floor, in degrees round from the STL x axis toward y.
+    /// The camera's yaw turns its right from scene x (cos t, 0, -sin t), which is STL (cos t, sin t, 0).
+    public var rightAzimuthDegrees: Double {
+        let d = Double(stage.yaw) * 180 / .pi
+        let r = d.truncatingRemainder(dividingBy: 360)
+        return r < 0 ? r + 360 : r
     }
 
     /// Positive tilts the top towards you.
@@ -87,6 +147,63 @@ public final class ViewerController: ObservableObject {
     func userTouched() { stopAutoRotate() }
     func userOrbited() { orbitCount += 1 }
 
+    // MARK: Hand control
+
+    // A pinch goes down the same press, drag and release path as the mouse, so it acts through the tool.
+    private var orbitView: OrbitSCNView? { view as? OrbitSCNView }
+    /// Where the pinch is now, in view points.
+    private var handPoint: CGPoint = .zero
+
+    /// A stage fraction (top-left origin) as a SceneKit view point (bottom-left origin).
+    nonisolated static func viewPoint(_ p: CGPoint, in size: CGSize) -> CGPoint {
+        CGPoint(x: p.x * size.width, y: (1 - p.y) * size.height)
+    }
+
+    /// A pinch starting at a stage point. Acts like a mouse press there.
+    public func handDragBegan(at point: CGPoint) {
+        guard let v = orbitView else { return }
+        handPoint = Self.viewPoint(point, in: v.bounds.size)
+        v.press(at: handPoint)
+    }
+
+    /// The hand moved to `point`. `fraction` of the view, right and down positive, turns the camera like
+    /// a mouse drag of the same length. Parts and cut lines follow `point` itself.
+    public func handDragged(to point: CGPoint, by fraction: CGVector) {
+        guard let v = orbitView else { return }
+        handPoint = Self.viewPoint(point, in: v.bounds.size)
+        v.drag(to: handPoint, by: CGVector(dx: fraction.dx * v.bounds.width, dy: fraction.dy * v.bounds.height))
+    }
+
+    public func handDragEnded() { orbitView?.release(at: handPoint) }
+
+    /// A held pinch does nothing in the viewer itself. The app confirms a cut with it.
+    public func handHeld() {}
+
+    /// Takes the drawn cut line off the stage, once the cut is done or dropped.
+    public func clearCutLine() { stage.showCutLine(nil) }
+
+    /// Where a stage point lands on the floor, as STL x and y in mm, snapped to 5 mm and kept on the bed.
+    /// Nil when it points above the horizon.
+    public func floorSpot(at point: CGPoint) -> SIMD2<Double>? {
+        guard let v = orbitView else { return nil }
+        let r = v.ray(Self.viewPoint(point, in: v.bounds.size))
+        guard let hit = Plane(point: .zero, normal: SIMD3(0, 1, 0)).intersect(origin: r.origin, direction: r.direction) else { return nil }
+        return Self.bedSpot(sceneX: Double(hit.x), sceneZ: Double(hit.z))
+    }
+
+    /// Scene floor x and z to STL x and y, snapped to `step` mm and kept on the bed.
+    nonisolated static func bedSpot(sceneX: Double, sceneZ: Double, step: Double = 5) -> SIMD2<Double> {
+        let half = Double(ViewerScene.bedHalf)
+        func snap(_ v: Double) -> Double { min(max((v / step).rounded() * step, -half), half) }
+        return SIMD2(snap(sceneX), snap(-sceneZ))
+    }
+
+    /// Above 1 moves closer.
+    public func handZoomed(by factor: CGFloat) {
+        userTouched()
+        stage.zoom(by: Float(factor))
+    }
+
     private func stopAutoRotate() {
         stage.stopSpin()
         if autoRotate { autoRotate = false }
@@ -98,10 +215,11 @@ public final class ViewerController: ObservableObject {
 
     // MARK: Loading
 
-    struct LoadKey: Equatable { var url: URL?; var revision: Int }
+    struct LoadKey: Equatable { var url: URL?; var revision: Int; var parts: [PartView]? = nil }
 
     func load(_ key: LoadKey, highlight: Bool) async {
         guard key != loadedKey else { return }
+        if let list = key.parts { return await loadParts(list, key) }
         guard let url = key.url else {
             stage.clearModel(); info = nil; phase = .empty; loadedKey = key
             return
@@ -146,6 +264,33 @@ public final class ViewerController: ObservableObject {
         }
     }
 
+    private func loadParts(_ list: [PartView], _ key: LoadKey) async {
+        if !stage.hasModel { phase = .loading }
+        do {
+            var meshes = [URL: STLLoader.Mesh]()
+            for url in Set(list.map(\.url)) where !stage.hasGeometry(for: url) {
+                meshes[url] = try await STLLoader.load(url: url)
+            }
+            if Task.isCancelled { return }
+            let first = !stage.isMultiPart
+            stage.setParts(list, meshes: meshes)
+            if first { stage.frame(animated: false) }
+            parts = list
+            if let s = selectedPartID, stage.parts[s] == nil { selectedPartID = nil }
+            // ponytail: no size badge for a build. Add the whole build's or the selected part's size when wired in.
+            info = nil
+            loadedKey = key
+            gridStepMM = stage.gridStepMM
+            phase = .ready
+        } catch is CancellationError {
+            return
+        } catch let e as STLError {
+            fail(e.errorDescription ?? "", e.teacherDetail, key)
+        } catch {
+            fail("The shape file could not be opened.", error.localizedDescription, key)
+        }
+    }
+
     private func fail(_ message: String, _ detail: String, _ key: LoadKey) {
         loadedKey = key
         phase = .failed(message: message, detail: detail)
@@ -167,8 +312,41 @@ public struct ModelViewer: View {
         self.external = controller
     }
 
+    /// A build of many parts. Pass a controller to pick a tool and hear about moves and cuts.
+    public init(parts: [PartView], controller: ViewerController? = nil) {
+        self.stlURL = nil
+        self.revision = 0
+        self.highlightChange = false
+        self.external = controller
+        self.parts = parts
+    }
+
+    private var parts: [PartView]?
+
     public var body: some View {
-        ViewerContent(controller: external ?? own, key: .init(url: stlURL, revision: revision), highlight: highlightChange)
+        ViewerContent(controller: external ?? own, key: .init(url: stlURL, revision: revision, parts: parts), highlight: highlightChange)
+    }
+}
+
+/// One part of a build: its mesh file and where its bottom centre sits.
+/// Millimetres in the STL frame (z up). Yaw in degrees about z.
+public struct PartView: Equatable, Hashable, Sendable, Identifiable {
+    public var id: String
+    public var url: URL
+    public var x: Double
+    public var y: Double
+    public var z: Double
+    public var yawDegrees: Double
+
+    public init(id: String, url: URL, x: Double = 0, y: Double = 0, z: Double = 0, yawDegrees: Double = 0) {
+        self.id = id; self.url = url; self.x = x; self.y = y; self.z = z; self.yawDegrees = yawDegrees
+    }
+
+    /// STL (x, y, z) is SceneKit (x, z, -y).
+    var scenePosition: SIMD3<Float> { SIMD3(Float(x), Float(z), Float(-y)) }
+
+    mutating func setScenePosition(_ p: SIMD3<Float>) {
+        x = Double(p.x); y = Double(-p.z); z = Double(p.y)
     }
 }
 
@@ -276,6 +454,11 @@ final class OrbitSCNView: SCNView {
     weak var controller: ViewerController?
     private var stage: ViewerScene? { controller?.stage }
 
+    /// Radians of turn per point of drag. Hand control uses the same.
+    static let yawPerPoint: Float = 0.009
+    /// Radians of tilt per point of drag. Hand control uses the same.
+    static let pitchPerPoint: Float = 0.007
+
     override var acceptsFirstResponder: Bool { true }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -285,21 +468,164 @@ final class OrbitSCNView: SCNView {
     }
 
     private var countedDrag = false
+    /// What the press landed on: a part id, or nil for empty floor. Only set for a multi part build.
+    private var downPart: String?
+    private var downPoint: CGPoint = .zero
+    private var dragged = false
+    /// A part being slid: the height of the grab plane and the offset from the grab point to its origin.
+    private var grab: (id: String, height: Float, offset: SIMD2<Float>)?
+    private var movedPart = false
+    /// A part being turned: its yaw at the press, in degrees, and the sideways drag so far in points.
+    private var turnGrab: (id: String, start: Double, dragged: CGFloat)?
 
-    override func mouseDown(with event: NSEvent) {
-        countedDrag = false
-        window?.makeFirstResponder(self)
-        controller?.userTouched()
-        if event.clickCount == 2 { controller?.resetView() }
+    private var multiPart: Bool { stage?.isMultiPart ?? false }
+    private var tool: ViewerController.Tool { controller?.tool ?? .look }
+
+    private func point(_ event: NSEvent) -> CGPoint { convert(event.locationInWindow, from: nil) }
+
+    /// The closest part under a view point.
+    func partID(at p: CGPoint) -> String? {
+        guard let stage else { return nil }
+        let hits = hitTest(p, options: [.searchMode: SCNHitTestSearchMode.closest.rawValue, .categoryBitMask: 1])
+        return hits.lazy.compactMap { stage.partID(of: $0.node) }.first
     }
 
+    private func worldHit(_ p: CGPoint) -> SIMD3<Float>? {
+        guard let stage else { return nil }
+        let hits = hitTest(p, options: [.searchMode: SCNHitTestSearchMode.closest.rawValue, .categoryBitMask: 1])
+        return hits.first { stage.partID(of: $0.node) != nil }.map { SIMD3<Float>($0.worldCoordinates) }
+    }
+
+    /// The mouse ray in world space, from the near plane out.
+    func ray(_ p: CGPoint) -> (origin: SIMD3<Float>, direction: SIMD3<Float>) {
+        let a = SIMD3<Float>(unprojectPoint(SCNVector3(p.x, p.y, 0)))
+        let b = SIMD3<Float>(unprojectPoint(SCNVector3(p.x, p.y, 1)))
+        return (a, simd_normalize(b - a))
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(self)
+        if event.clickCount == 2 { controller?.resetView() }
+        press(at: point(event))
+    }
+
+    override func mouseUp(with event: NSEvent) { release(at: point(event)) }
+
     override func mouseDragged(with event: NSEvent) {
-        if event.modifierFlags.contains(.option) {
-            stage?.pan(dx: Float(event.deltaX), dy: Float(event.deltaY))
+        let f = event.modifierFlags
+        drag(to: point(event), by: CGVector(dx: event.deltaX, dy: event.deltaY),
+             lift: f.contains(.shift), noSnap: f.contains(.command), pan: f.contains(.option))
+    }
+
+    // MARK: Press, drag, release. The mouse and a hand pinch both come through here.
+
+    /// `p` is a view point, bottom-left origin.
+    func press(at p: CGPoint) {
+        countedDrag = false
+        dragged = false
+        movedPart = false
+        grab = nil
+        turnGrab = nil
+        controller?.userTouched()
+
+        guard multiPart, let stage else { return }
+        downPoint = p
+        downPart = partID(at: p)
+        if tool == .move, let id = downPart, let hit = worldHit(p), let pos = stage.position(of: id) {
+            controller?.selectedPartID = id
+            grab = (id, hit.y, SIMD2(pos.x - hit.x, pos.z - hit.z))
+        } else if tool == .turn, let id = downPart, let yaw = stage.yawDegrees(of: id) {
+            controller?.selectedPartID = id
+            turnGrab = (id, yaw, 0)
+        }
+    }
+
+    /// `d` is how far it moved in points, right and down positive, like `NSEvent.deltaX` and `deltaY`.
+    /// `lift` raises or lowers a grabbed part, `noSnap` skips lining up, `pan` slides the view.
+    func drag(to p: CGPoint, by d: CGVector, lift: Bool = false, noSnap: Bool = false, pan: Bool = false) {
+        dragged = true
+        if multiPart, let t = turnGrab, let stage {
+            turnGrab?.dragged += d.dx
+            let yaw = TurnSnap.yaw(from: t.start, draggedPoints: t.dragged + d.dx)
+            if stage.yawDegrees(of: t.id).map({ abs($0 - yaw) > 0.01 }) ?? false {
+                stage.turnPart(t.id, yawDegrees: yaw)
+                movedPart = true
+            }
+            return
+        }
+        if multiPart, let g = grab, let stage {
+            if lift {  // Shift drag lifts the part up or down
+                stage.liftPart(g.id, by: Float(-d.dy) * 0.5)
+                movedPart = true
+                return
+            }
+            let r = ray(p)
+            let floorPlane = Plane(point: SIMD3(0, g.height, 0), normal: SIMD3(0, 1, 0))
+            if let hit = floorPlane.intersect(origin: r.origin, direction: r.direction) {
+                let snap = (controller?.snapEnabled ?? false) && !noSnap
+                stage.dragPart(g.id, x: hit.x + g.offset.x, z: hit.z + g.offset.y, snap: snap)
+                movedPart = true
+            }
+            return
+        }
+        if multiPart && tool == .cut {
+            let (a, b) = CutStroke.snapped(downPoint, p)
+            stage?.showCutLine(cutLine(a, b))
+            return
+        }
+        if pan {
+            stage?.pan(dx: Float(d.dx), dy: Float(d.dy))
         } else {
-            stage?.orbit(dYaw: Float(-event.deltaX) * 0.009, dPitch: Float(-event.deltaY) * 0.007)
+            stage?.orbit(dYaw: Float(-d.dx) * Self.yawPerPoint, dPitch: Float(-d.dy) * Self.pitchPerPoint)
             if !countedDrag { countedDrag = true; controller?.userOrbited() }
         }
+    }
+
+    func release(at p: CGPoint) {
+        guard multiPart, let stage else { return }
+        stage.showGuides([])
+        if let t = turnGrab, movedPart, let yaw = stage.yawDegrees(of: t.id) {
+            // Snap again: the node keeps the angle as a Float, a hair off the step.
+            controller?.partTurned(t.id, to: TurnSnap.yaw(from: yaw, draggedPoints: 0))
+        } else if let g = grab, movedPart, let pos = stage.position(of: g.id) {
+            controller?.partMoved(g.id, to: pos)
+        } else if tool == .cut, dragged {
+            // The drag already swapped the stage line for this stroke. A stroke too short or off every
+            // part drops it, and any cut still waiting, so the line and the "Cut here" bar always agree.
+            if hypot(p.x - downPoint.x, p.y - downPoint.y) <= 8 || !finishCut(to: p) {
+                stage.showCutLine(nil)
+                controller?.onCutDropped?()
+            }
+        } else if !dragged {
+            // A click selects the part under it in every tool. A click on the floor clears the selection.
+            controller?.selectedPartID = downPart
+        }
+        grab = nil
+        turnGrab = nil
+    }
+
+    /// The stroke snapped to 15 degree steps, so a wobbly line gives a clean cut. True when it made a cut.
+    /// The line stays on the stage until the app clears it.
+    private func finishCut(to end: CGPoint) -> Bool {
+        guard let c = controller else { return false }
+        let (a, b) = CutStroke.snapped(downPoint, end)
+        let mid = CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
+        guard let id = partID(at: mid) ?? c.selectedPartID else { return false }
+        let eye = pointOfView?.presentation.simdWorldPosition ?? .zero
+        let (wa, wb) = cutLine(a, b)
+        guard let plane = CutPlane.make(eye: eye, strokeA: wa, strokeB: wb) else { return false }
+        stage?.showCutLine((wa, wb))
+        c.cut(partID: id, worldPlane: plane)
+        return true
+    }
+
+    /// The stroke's ends in the world, at the depth of the part under it (or the model's middle), so
+    /// the drawn line stays on the part when the view turns.
+    private func cutLine(_ a: CGPoint, _ b: CGPoint) -> (SIMD3<Float>, SIMD3<Float>) {
+        let mid = CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
+        let centre = (partID(at: mid) ?? downPart).flatMap { stage?.position(of: $0) } ?? stage?.center ?? .zero
+        let z = projectPoint(SCNVector3(centre)).z
+        return (SIMD3<Float>(unprojectPoint(SCNVector3(a.x, a.y, z))), SIMD3<Float>(unprojectPoint(SCNVector3(b.x, b.y, z))))
     }
 
     override func rightMouseDown(with event: NSEvent) { controller?.userTouched() }
@@ -308,7 +634,11 @@ final class OrbitSCNView: SCNView {
 
     override func scrollWheel(with event: NSEvent) {
         controller?.userTouched()
-        if event.hasPreciseScrollingDeltas {
+        if event.hasPreciseScrollingDeltas && multiPart && tool != .look {
+            // In Move and Cut a one finger drag is busy, so two fingers turn the view instead of sliding it.
+            stage?.orbit(dYaw: Float(-event.scrollingDeltaX) * Self.yawPerPoint, dPitch: Float(-event.scrollingDeltaY) * Self.pitchPerPoint)
+            if event.phase == .began { controller?.userOrbited() }
+        } else if event.hasPreciseScrollingDeltas {
             // Two fingers on a trackpad slide the model around.
             stage?.pan(dx: Float(event.scrollingDeltaX), dy: Float(-event.scrollingDeltaY))
         } else {
