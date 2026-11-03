@@ -179,8 +179,8 @@ final class AppModel: ObservableObject {
 
     /// A cut line the kid drew, waiting for "Cut here". The plane is in the part's own file frame.
     struct PendingCut: Equatable { let id: String; let point: [Double]; let normal: [Double] }
-    /// Something for Caddiy to say on the stage. `n` makes the same moment fire twice.
-    struct CaddiyCue: Equatable { let moment: CaddiyMoment; let n: Int }
+    /// Something for Caddy to say on the stage. `n` makes the same moment fire twice.
+    struct CaddyCue: Equatable { let moment: CaddyMoment; let n: Int }
 
     /// The parts as the viewer shows them, with local copies of their files.
     @Published private(set) var partViews: [PartPlacement] = []
@@ -205,7 +205,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var isWorking = false
     @Published var splitDismissed = false
     @Published var showAddShelf = false
-    @Published private(set) var cue: CaddiyCue?
+    @Published private(set) var cue: CaddyCue?
     private var cueCount = 0
     private var partFiles: [String: URL] = [:]
     private var selectionSink: AnyCancellable?
@@ -318,7 +318,7 @@ final class AppModel: ObservableObject {
 
     func open(_ url: URL) {
         guard ScanFiles.accepts(url) else {
-            note = Note(kind: .bad, text: "CADDIY opens STL, PLY and OBJ files, turntable scan files (TXT or CSV), and videos. This file is a different type.",
+            note = Note(kind: .bad, text: "CADDY opens STL, PLY and OBJ files, turntable scan files (TXT or CSV), and videos. This file is a different type.",
                         detail: url.lastPathComponent)
             return
         }
@@ -644,7 +644,7 @@ final class AppModel: ObservableObject {
     func cancelCut() { pendingCut = nil }
 
     /// Runs one parts call and shows the result. A move skips the busy check so a quick drag is never lost.
-    @discardableResult func partAction(_ action: PartAction, cue moment: CaddiyMoment?) async -> Bool {
+    @discardableResult func partAction(_ action: PartAction, cue moment: CaddyMoment?) async -> Bool {
         let isMove = if case .move = action { true } else { false }
         guard !isEditing, isMove || !isWorking else { return false }
         isWorking = true
@@ -668,9 +668,9 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func say(_ moment: CaddiyMoment) {
+    private func say(_ moment: CaddyMoment) {
         cueCount += 1
-        cue = CaddiyCue(moment: moment, n: cueCount)
+        cue = CaddyCue(moment: moment, n: cueCount)
     }
 
     private func resetParts() {
@@ -693,7 +693,7 @@ final class AppModel: ObservableObject {
             if !selection.isEmpty { selection = [] }
             return
         }
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("CADDIY/parts", isDirectory: true)
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("CADDY/parts", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var views: [PartPlacement] = []
         for p in list {
@@ -742,7 +742,7 @@ final class AppModel: ObservableObject {
         // A move changes no version, so the part spots are part of what is on screen.
         let current = last + parts.map { "|\($0.file)@\($0.x),\($0.y),\($0.z),\($0.yaw)" }.joined()
         if current == shownVersion && stlURL != nil { return }
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("CADDIY", isDirectory: true)
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("CADDY", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("model-\(revision + 1).stl")
         do {

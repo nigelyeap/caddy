@@ -26,7 +26,7 @@ cat > $APP/Contents/Info.plist <<PLIST
 <dict>
   <key>CFBundleName</key><string>HandCheck</string>
   <key>CFBundleExecutable</key><string>HandCheck</string>
-  <key>CFBundleIdentifier</key><string>com.nigel.caddiy.handcheck</string>
+  <key>CFBundleIdentifier</key><string>com.nigel.caddy.handcheck</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSHighResolutionCapable</key><true/>

@@ -15,12 +15,12 @@ struct LaunchView: View {
     var body: some View {
         VStack(spacing: Theme.Space.m) {
             if failure == nil {
-                TalkingCaddiy(moment: .launch, pose: .hatching, size: 96)
+                TalkingCaddy(moment: .launch, pose: .hatching, size: 96)
             } else {
-                CaddiyView(pose: .sad, size: 96)
+                CaddyView(pose: .sad, size: 96)
             }
             if let failure {
-                Text("CADDIY could not get ready").themeFont(.title).foregroundStyle(Theme.ink)
+                Text("CADDY could not get ready").themeFont(.title).foregroundStyle(Theme.ink)
                 Text("Ask your teacher to help. They can look at the details.")
                     .themeFont(.body).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
                 HStack(spacing: Theme.Space.xs) {
@@ -65,8 +65,8 @@ struct WorkflowSteps: View {
     // Names match the toolbar breadcrumb. Each step has its own soft tint for the icon well.
     private let steps: [(String, String, String, Theme.Tint)] = [
         ("Scan", "Film your object from every side.", "camera.viewfinder", Theme.tintSize),
-        ("Process", "CADDIY turns it into a 3D model. A video takes about a minute.", "wand.and.stars", Theme.tintSun),
-        ("Edit", "Tell CADDIY what to change. Then save it for the 3D printer.", "paintbrush.pointed", Theme.tintAdd),
+        ("Process", "CADDY turns it into a 3D model. A video takes about a minute.", "wand.and.stars", Theme.tintSun),
+        ("Edit", "Tell CADDY what to change. Then save it for the 3D printer.", "paintbrush.pointed", Theme.tintAdd),
     ]
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -271,7 +271,7 @@ struct TurntableHelpSheet: View {
 struct FirstRunView: View {
     let start: () -> Void
     let sample: () -> Void
-    /// While the Caddiy tour shows, Return belongs to the tour bubble.
+    /// While the Caddy tour shows, Return belongs to the tour bubble.
     var tutorialOn = false
     @StateObject private var stage = ViewerController()
     private let mug = Bundle.module.url(forResource: "mug", withExtension: "stl")
@@ -321,12 +321,12 @@ struct FirstRunView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// Caddiy says hello in a soft sunny bubble. The words do the talking, so the picture is hidden from VoiceOver.
+    /// Caddy says hello in a soft sunny bubble. The words do the talking, so the picture is hidden from VoiceOver.
     private var hello: some View {
         HStack(alignment: .center, spacing: Theme.Space.s) {
-            TalkingCaddiy(moment: .home, pose: .hello, size: 80, bubbleAlignment: .bottomLeading)
+            TalkingCaddy(moment: .home, pose: .hello, size: 80, bubbleAlignment: .bottomLeading)
             VStack(alignment: .leading, spacing: Theme.Space.xxs) {
-                Text("Hi, I'm Caddiy!").themeFont(.title).foregroundStyle(Theme.ink)
+                Text("Hi, I'm Caddy!").themeFont(.title).foregroundStyle(Theme.ink)
                     .accessibilityAddTraits(.isHeader)
                 Text("Let's turn a real thing into a 3D model you can print.")
                     .themeFont(.body).foregroundStyle(Theme.ink)
@@ -380,7 +380,7 @@ struct ProcessingView: View {
         }
     }
 
-    /// Where the model will appear. Caddiy works here on a calm backdrop, never on the 3D stage.
+    /// Where the model will appear. Caddy works here on a calm backdrop, never on the 3D stage.
     private var preview: some View {
         ZStack {
             RoundedRectangle(cornerRadius: Theme.cornerLarge, style: .continuous)
@@ -388,7 +388,7 @@ struct ProcessingView: View {
             RoundedRectangle(cornerRadius: Theme.cornerLarge, style: .continuous).strokeBorder(Theme.line)
             VStack(spacing: Theme.Space.s) {
                 if processing.failure == nil {
-                    TalkingCaddiy(moment: .process, pose: .thinking, size: 120, idle: true)
+                    TalkingCaddy(moment: .process, pose: .thinking, size: 120, idle: true)
                     VStack(spacing: Theme.Space.xs) {
                         HStack(spacing: Theme.Space.xs) {
                             ProgressView().controlSize(.small)
@@ -400,7 +400,7 @@ struct ProcessingView: View {
                     .padding(.horizontal, Theme.Space.m).padding(.vertical, Theme.Space.s)
                     .card(padding: 0)
                 } else {
-                    TalkingCaddiy(moment: .processFailed, pose: .sad, size: 120)
+                    TalkingCaddy(moment: .processFailed, pose: .sad, size: 120)
                     Text("No model this time").themeFont(.heading).foregroundStyle(Theme.ink)
                         .padding(.horizontal, Theme.Space.m).padding(.vertical, Theme.Space.s)
                         .card(padding: 0)

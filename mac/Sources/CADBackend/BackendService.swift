@@ -44,9 +44,24 @@ public final class BackendService: ObservableObject {
     nonisolated public static var bundledServer: URL? {
         bundledRuntime.flatMap { _ in Bundle.main.resourceURL?.appendingPathComponent("server") }
     }
-    /// ~/Library/Application Support/CADDIY. The packaged app keeps .env and saved models here.
+    /// ~/Library/Application Support/CADDY. The packaged app keeps .env and saved models here.
     nonisolated public static var supportFolder: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/CADDIY")
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/CADDY")
+    }
+
+    /// One time, after the CADDIY to CADDY rename: moves the old saved models and .env across, and copies the old settings.
+    nonisolated public static func migrateLegacyData() {
+        let fm = FileManager.default
+        let old = supportFolder.deletingLastPathComponent().appendingPathComponent("CADDIY")
+        if fm.fileExists(atPath: old.path), !fm.fileExists(atPath: supportFolder.path) {
+            try? fm.moveItem(at: old, to: supportFolder)
+        }
+        let key = "migratedFromCADDIY"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        if let legacy = UserDefaults.standard.persistentDomain(forName: "com.nigel.caddiy") {
+            for (k, v) in legacy where UserDefaults.standard.object(forKey: k) == nil { UserDefaults.standard.set(v, forKey: k) }
+        }
+        UserDefaults.standard.set(true, forKey: key)
     }
 
     /// root defaults to the packaged server, else env CAD_TRAINING_ROOT, else ~/Documents/cad-training.
@@ -74,7 +89,7 @@ public final class BackendService: ObservableObject {
         restarts = 0
         phase = .starting
         guard let (root, key) = await locate() else {
-            phase = .failed("I could not find the CADDIY folder.")
+            phase = .failed("I could not find the CADDY folder.")
             log("Set CAD_TRAINING_ROOT or put the project at ~/Documents/cad-training.")
             return
         }
@@ -125,8 +140,8 @@ public final class BackendService: ObservableObject {
             p.arguments = ["-m"] + serve
             for k in ["PYTHONHOME", "PYTHONPATH", "VIRTUAL_ENV", "PYTHONSTARTUP"] { env.removeValue(forKey: k) }
             env["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
-            env["CADDIY_PYTHON"] = python.path
-            env["CADDIY_DATA_DIR"] = Self.supportFolder.appendingPathComponent("data").path
+            env["CADDY_PYTHON"] = python.path
+            env["CADDY_DATA_DIR"] = Self.supportFolder.appendingPathComponent("data").path
             env["PYTHONDONTWRITEBYTECODE"] = "1"   // the app is signed, so its folder must not change
             env["PYTHONNOUSERSITE"] = "1"
         } else {

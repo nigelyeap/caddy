@@ -24,7 +24,7 @@ struct ScanStep: View {
     let api: BackendAPI
     let onFinished: (URL) -> Void
     let onSkip: () -> Void
-    /// The Caddiy tour plays a practice clip, so it never needs the camera.
+    /// The Caddy tour plays a practice clip, so it never needs the camera.
     var practice = false
     var body: some View {
         // The id makes a new ScanModel when practice changes, since StateObject keeps the first source.

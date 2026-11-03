@@ -4,7 +4,7 @@ Date: 2026-11-01. Built by three parallel agents (importer, backend plumbing, UI
 
 ## What was built
 
-A kid can take the SD card out of the ELECTRONOOBS turntable scanner, open `scan_001.txt` (or a `.csv`) in CADDIY, and get a printable STL on the Edit screen.
+A kid can take the SD card out of the ELECTRONOOBS turntable scanner, open `scan_001.txt` (or a `.csv`) in CADDY, and get a printable STL on the Edit screen.
 
 - `bench/turntable.py` reads the `x,y,z` text, groups points into layers, and turns each layer into a radius profile around the turntable axis. It removes bad readings, fills gaps, adds flat top and bottom caps, and writes a watertight, outward-facing mesh in mm with the base on z=0.
 - Old firmware files (the 1 degree angle bug, points spread over only 200 degrees) are detected on their own and fixed. `--legacy` and `--no-legacy` force either mode.

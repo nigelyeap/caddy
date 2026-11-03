@@ -174,11 +174,11 @@ struct RootView: View {
         ToolbarItem(placement: .navigation) {
             HStack(spacing: Theme.Space.s) {
                 HStack(spacing: 6) {
-                    CaddiyView(pose: .logo, size: 24, wave: false)
-                    Text("CADDIY").font(Theme.rounded(15, .heavy)).foregroundStyle(Theme.gold)
+                    CaddyView(pose: .logo, size: 24, wave: false)
+                    Text("CADDY").font(Theme.rounded(15, .heavy)).foregroundStyle(Theme.gold)
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("CADDIY")
+                .accessibilityLabel("CADDY")
                 if everConnected {
                     Theme.line.frame(width: 1, height: 16)
                     StepIndicator(current: model.step)
@@ -250,7 +250,7 @@ struct RootView: View {
         func effects(_ v: NSView) -> [NSVisualEffectView] {
             ((v as? NSVisualEffectView).map { [$0] } ?? []) + v.subviews.flatMap(effects)
         }
-        let tag = NSUserInterfaceItemIdentifier("caddiyHeader")
+        let tag = NSUserInterfaceItemIdentifier("caddyHeader")
         for w in NSApp.windows where String(describing: type(of: w)).contains("FullScreen") {
             guard let root = w.contentView?.superview ?? w.contentView else { continue }
             for e in effects(root) where !e.subviews.contains(where: { $0.identifier == tag }) {
@@ -318,7 +318,7 @@ struct RootView: View {
 }
 
 extension Notification.Name {
-    static let focusChangeField = Notification.Name("CADDIY.focusChangeField")
-    static let saveModel = Notification.Name("CADDIY.saveModel")
-    static let openScanFile = Notification.Name("CADDIY.openScanFile")
+    static let focusChangeField = Notification.Name("CADDY.focusChangeField")
+    static let saveModel = Notification.Name("CADDY.saveModel")
+    static let openScanFile = Notification.Name("CADDY.openScanFile")
 }

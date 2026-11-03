@@ -1,4 +1,4 @@
-# CADDIY design critique
+# CADDY design critique
 
 Written 2026-10-30. This is the adversarial review of `DESIGN_IDEAS.md` and `DESIGN_PLANS.md`. I read those two files, `DESIGN_NOTES.md`, `README.md`, every file in `Sources/CADApp`, `CADViewer`, `CADScan` and `CADShared/Theme.swift`, plus the helper code they depend on (`webapp/app.py`, `webapp/processing.py`, `guidance/guidance.py`, `guidance/QUALITY_NOTES.md`). No source file was edited.
 
@@ -18,7 +18,7 @@ Verdicts: **KEEP** as written, **CHANGE** with a required change, **CUT**.
 
 **CHANGE.** Objection: most of it serves the people-test programme (see problem 3), and the window capture needs Screen Recording permission for whatever runs `screencapture -l`.
 Evidence: `ImageRenderer` cannot capture `NSViewRepresentable` content, as the plan says, and `Tests/CADScanTests` already uses `ImageRenderer` for `OverlayGallery`, so overlay shots exist today. `scripts/viewer_check.sh --pictures` already renders the stage headless.
-Required change: keep `CADDIY_DEMO`, `CADDIY_APPEARANCE`, the window-only capture and a fixed window size. Keep two metrics that cannot be gamed: worst-pixel WCAG for text over video or the stage, and `frameMs` measured on the oldest Mac you can borrow. Drop `design_metrics.swift` beyond that, drop `borderLines` and `motionLiterals`, and drop `CADDIY_SLOWMO` unless P3 survives. Cost 1 day.
+Required change: keep `CADDY_DEMO`, `CADDY_APPEARANCE`, the window-only capture and a fixed window size. Keep two metrics that cannot be gamed: worst-pixel WCAG for text over video or the stage, and `frameMs` measured on the oldest Mac you can borrow. Drop `design_metrics.swift` beyond that, drop `borderLines` and `motionLiterals`, and drop `CADDY_SLOWMO` unless P3 survives. Cost 1 day.
 
 ## P1. Studio stage
 

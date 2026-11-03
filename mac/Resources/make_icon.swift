@@ -1,5 +1,5 @@
 // Draws the app icon as a 1024 px PNG. Run: swift make_icon.swift out.png [logo.png]
-// Default: the Caddiy logo on a plain white rounded square. Set blueTile to true for the old soft blue tile.
+// Default: the Caddy logo on a plain white rounded square. Set blueTile to true for the old soft blue tile.
 import AppKit
 
 let blueTile = false
@@ -13,7 +13,7 @@ let poses = here.deletingLastPathComponent().appendingPathComponent("mascot/pose
 /// The blue tile needs the see-through cutout. The white square takes the logo as drawn,
 /// the 1024 px one when it exists, else the small one.
 func defaultLogo() -> String {
-    if blueTile { return here.appendingPathComponent("caddiy_logo_1024.png").path }
+    if blueTile { return here.appendingPathComponent("caddy_logo_1024.png").path }
     let big = poses.appendingPathComponent("logo_neutral_1024.png").path
     return FileManager.default.fileExists(atPath: big) ? big : poses.appendingPathComponent("logo_neutral.png").path
 }

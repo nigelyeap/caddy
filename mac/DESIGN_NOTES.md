@@ -1,4 +1,4 @@
-# CADDIY design notes
+# CADDY design notes
 
 One page. What the app looks like now, why, and how it got here.
 
@@ -16,7 +16,7 @@ Students and teachers in a classroom, on a Mac or a projector. The look is a pla
 
 ## Screens
 
-- **Toolbar.** "CADDIY", a divider, then a breadcrumb: Scan > Process > Edit. Sound and Text size sit on the right and are also in the menus.
+- **Toolbar.** "CADDY", a divider, then a breadcrumb: Scan > Process > Edit. Sound and Text size sit on the right and are also in the menus.
 - **First run.** A title, a "How it works" card with the three steps, a "For a good scan" checklist, and two buttons: Use the sample model (secondary) and Start scanning (primary). The cards sit side by side and stack when the text is large.
 - **Scan.** The camera view from CADScan on the left. A 280 pt side panel on the right shows the three steps with Scan marked "Now", scan tips, and the other ways in: Open a scan file and Use the sample model.
 - **Process.** A large placeholder where the model will appear, with a spinner and the current stage. A 320 pt status panel shows the source, elapsed seconds, the stage list, and what happens next. If processing fails, the panel shows the reason, the scan tips, and Back to scan as the primary action.

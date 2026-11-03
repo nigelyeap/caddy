@@ -1,7 +1,7 @@
 """Scan cleanup and mesh editing.
 
 Mesh cleanup and edits call the bench code through its own uv environment,
-or through the Python named by CADDIY_PYTHON in the packaged app.
+or through the Python named by CADDY_PYTHON in the packaged app.
 Video to mesh reconstruction does not exist yet, so a video input still gets
 the sample cup.
 """
@@ -22,7 +22,7 @@ TURNTABLE_CALIB = BENCH / "turntable_calib.json"
 
 
 def _cmd():
-    py = os.environ.get("CADDIY_PYTHON")
+    py = os.environ.get("CADDY_PYTHON")
     return [py] if py else ["uv", "run", "--project", str(BENCH), "python"]
 
 

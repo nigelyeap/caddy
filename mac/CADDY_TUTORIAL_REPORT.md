@@ -1,15 +1,15 @@
-# Caddiy tutorial: report
+# Caddy tutorial: report
 
 Written 2026-10-31. Nothing was committed or pushed.
 
 ## What was built
 
-- Caddiy art in the app. The 11 poses are now transparent 400 px cutouts made from the 200 px source PNGs. Point left is point right mirrored in code.
-- `CaddiyView`, a SwiftUI view with a pose, a size that follows the text size, hidden from VoiceOver unless it is given a label. An optional idle bob is off by default and always off with Reduce Motion.
-- An About window with the logo pose (CADDIY menu, About CADDIY).
+- Caddy art in the app. The 11 poses are now transparent 400 px cutouts made from the 200 px source PNGs. Point left is point right mirrored in code.
+- `CaddyView`, a SwiftUI view with a pose, a size that follows the text size, hidden from VoiceOver unless it is given a label. An optional idle bob is off by default and always off with Reduce Motion.
+- An About window with the logo pose (CADDY menu, About CADDY).
 - A new app icon: the neutral logo on a plain white rounded square. The soft blue tile is still there behind one switch (see Icon).
-- An in-app tour with 12 steps. The screen dims and a hole shows the real control. Caddiy talks in a bubble with Back, Next, Skip tour, Skip this step and a progress bar ("5 of 12").
-- Skip tour and Escape ask first. Caddiy says "Leave the tour?" with Keep going and Leave. Escape on that question keeps going. No thanks on the welcome step ends it at once, since the tour has not started.
+- An in-app tour with 12 steps. The screen dims and a hole shows the real control. Caddy talks in a bubble with Back, Next, Skip tour, Skip this step and a progress bar ("5 of 12").
+- Skip tour and Escape ask first. Caddy says "Leave the tour?" with Keep going and Leave. Escape on that question keeps going. No thanks on the welcome step ends it at once, since the tour has not started.
 - Do-it-yourself steps move on when the app state changes, so menu items and shortcuts count too. Look-only steps use Next.
 - The scan step uses the practice clip (`PreviewScanSource`). No camera and no scanner are needed.
 - If contact with the helper is lost, the tour pauses with the sleepy pose. It comes back on reconnect.
@@ -23,7 +23,7 @@ Cut from 25 to 12 on 2026-10-31. The old steps and their tests were deleted.
 |---|---|---|
 | 1 | First run | Welcome offer, Yes please or No thanks |
 | 2 | First run | Start scanning (do it) |
-| 3 | Scan | Use the sample model (do it). Caddiy says the scanner is not here yet. |
+| 3 | Scan | Use the sample model (do it). Caddy says the scanner is not here yet. |
 | 4 | Process | Status, moves on by itself |
 | 5 | Edit | Drag to turn the model (do it) |
 | 6 | Edit | The viewer buttons: spin, grid, triangles, reset, picture. One hole, try any, then Next. |
@@ -39,19 +39,19 @@ Steps 9 and 10 show the hole and ring, but clicks in the hole do not reach the b
 ## Files
 
 New:
-- `Sources/CADApp/CaddiyView.swift`
+- `Sources/CADApp/CaddyView.swift`
 - `Sources/CADApp/AboutView.swift`
 - `Sources/CADApp/Tutorial.swift`
 - `Sources/CADApp/TutorialOverlay.swift`
 - `Sources/CADShared/TutorialTarget.swift`
-- `Sources/CADApp/Resources/Caddiy/*.png`
-- `Resources/caddiy_logo_1024.png`
+- `Sources/CADApp/Resources/Caddy/*.png`
+- `Resources/caddy_logo_1024.png`
 - `Tests/CADAppTests/TutorialTests.swift`
 
 Changed:
-- `Package.swift`: the Caddiy resources and the test target.
+- `Package.swift`: the Caddy resources and the test target.
 - `Resources/make_icon.swift`
-- `build_app.sh`: the icon cache now also checks `caddiy_logo_1024.png`, `mascot/poses_ai/logo_neutral.png` and `mascot/poses_ai/logo_neutral_1024.png`.
+- `build_app.sh`: the icon cache now also checks `caddy_logo_1024.png`, `mascot/poses_ai/logo_neutral.png` and `mascot/poses_ai/logo_neutral_1024.png`.
 - `Sources/CADApp`: `CADApp.swift`, `RootView.swift`, `Screens.swift`, `EditScreen.swift`, `Integration.swift`. `AppModel.swift` is back to its old save code (the save counter went with the old Save step).
 - `Sources/CADViewer`: `ModelViewer.swift`, `ViewerUI.swift`
 - `Sources/CADScan/ScanView.swift`
@@ -61,10 +61,10 @@ No webapp change.
 
 ## How to launch it
 
-- On a fresh install, Caddiy offers the tour on the first-run screen.
+- On a fresh install, Caddy offers the tour on the first-run screen.
 - Help, Show Me Around starts it again at the right step for the current screen.
 - Escape and Skip tour ask "Leave the tour?". Return presses Next.
-- Harness: `CADDIY_TUTORIAL=<step number, id or off>`. Add `CADDIY_TUTORIAL_DEBUG=1` to log the hole and bubble rects, or `CADDIY_TUTORIAL_ASK=1` to open on the leave question.
+- Harness: `CADDY_TUTORIAL=<step number, id or off>`. Add `CADDY_TUTORIAL_DEBUG=1` to log the hole and bubble rects, or `CADDY_TUTORIAL_ASK=1` to open on the leave question.
 - Shots: `TUTORIAL_STEPS="1 3 7" TUTORIAL_SIZES="large largest" scripts/shots.sh ../samples/mug.stl <outdir>`. Add `TOUR_ASK=1` for the leave question, `APPEARANCE=dark` for dark mode.
 
 ## What was verified by running it
@@ -99,7 +99,7 @@ First pass (25 steps):
 ## Icon
 
 - The default is no tile: the logo on a plain white rounded square with a faint edge, so it still shows on a white Finder window. The square takes the colour of the logo corner, so the logo's near-white backdrop has no seam.
-- `Resources/make_icon.swift` has one switch at the top: `let blueTile = false`. Set it to `true` for the old soft blue tile (`#BFE0F7`), which uses the see-through `Resources/caddiy_logo_1024.png`.
+- `Resources/make_icon.swift` has one switch at the top: `let blueTile = false`. Set it to `true` for the old soft blue tile (`#BFE0F7`), which uses the see-through `Resources/caddy_logo_1024.png`.
 - Logo for the white square: `mascot/poses_ai/logo_neutral_1024.png` when it exists, else `mascot/poses_ai/logo_neutral.png`. `build_app.sh` redraws the icon when either file changes.
 - With the 200 px logo the icon is soft at 1024 px. It should be sharp once the 1024 px logo lands.
 - Side by side of both versions: `/private/tmp/claude-501/-Users-nigelyeap/16bf9df3-205a-49d4-a3cf-165fc42d9277/scratchpad/qa/icon/both.png` (the white one there is from before the logo was made larger).

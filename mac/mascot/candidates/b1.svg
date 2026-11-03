@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Caddiy B1: a soft blob inside its amber scan ring -->
+  <!-- Caddy B1: a soft blob inside its amber scan ring -->
   <!-- 1. scan ring (behind) -->
   <circle cx="256" cy="256" r="208" fill="none" stroke="#F6B23C" stroke-width="48"/>
   <!-- 2. blob body: a squashed circle that sits on the ring -->

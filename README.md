@@ -1,6 +1,6 @@
-# CADDIY
+# CADDY
 
-Scan, clean up and edit 3D models, built for kids. Mascot: Caddiy.
+Scan, clean up and edit 3D models, built for kids. Mascot: Caddy.
 
 - `mac/` native SwiftUI Mac app (build with `./build_app.sh --bundle`)
 - `bench/` Python mesh cleanup and edit helpers

@@ -116,13 +116,13 @@ final class TutorialFlowTests: XCTestCase {
 
     func testHarnessEnvironment() {
         XCTAssertEqual(Tutorial.harness(from: [:]), .normal)
-        XCTAssertEqual(Tutorial.harness(from: ["CADDIY_DEMO": "/x.stl"]), .off)
-        XCTAssertEqual(Tutorial.harness(from: ["CADDIY_TUTORIAL": "off"]), .off)
-        XCTAssertEqual(Tutorial.harness(from: ["CADDIY_TUTORIAL": "3", "CADDIY_DEMO": "/x.stl"]), .start(2))
+        XCTAssertEqual(Tutorial.harness(from: ["CADDY_DEMO": "/x.stl"]), .off)
+        XCTAssertEqual(Tutorial.harness(from: ["CADDY_TUTORIAL": "off"]), .off)
+        XCTAssertEqual(Tutorial.harness(from: ["CADDY_TUTORIAL": "3", "CADDY_DEMO": "/x.stl"]), .start(2))
     }
 
     func testStepsMoveOnFromState() {
-        let t = Tutorial(environment: ["CADDIY_TUTORIAL": "viewer"])
+        let t = Tutorial(environment: ["CADDY_TUTORIAL": "viewer"])
         t.harnessPrepared()
         let viewer = TutorialScript.index(forHarness: "viewer")!
         t.check(TutorialSnapshot(screen: .scan))
@@ -137,7 +137,7 @@ final class TutorialFlowTests: XCTestCase {
     }
 
     func testPausesWhileDisconnected() {
-        let t = Tutorial(environment: ["CADDIY_TUTORIAL": "viewer"])
+        let t = Tutorial(environment: ["CADDY_TUTORIAL": "viewer"])
         t.harnessPrepared()
         let base = TutorialSnapshot(screen: .edit, versions: 1)
         t.check(base)
@@ -152,7 +152,7 @@ final class TutorialFlowTests: XCTestCase {
     }
 
     func testScreenJumpGoesToThatScreensFirstStep() {
-        let t = Tutorial(environment: ["CADDIY_TUTORIAL": "startScanning"])
+        let t = Tutorial(environment: ["CADDY_TUTORIAL": "startScanning"])
         t.harnessPrepared()
         t.check(TutorialSnapshot(screen: .firstRun))
         XCTAssertEqual(t.step?.id, "startScanning")
@@ -166,7 +166,7 @@ final class TutorialFlowTests: XCTestCase {
     }
 
     func testFinishEndsTheTour() {
-        let t = Tutorial(environment: ["CADDIY_TUTORIAL": "tips"])
+        let t = Tutorial(environment: ["CADDY_TUTORIAL": "tips"])
         t.harnessPrepared()
         t.check(TutorialSnapshot(screen: .edit))
         t.next()

@@ -1,4 +1,4 @@
-"""CADDIY web app. Run: uv run uvicorn app:app --port 8000"""
+"""CADDY web app. Run: uv run uvicorn app:app --port 8000"""
 import json
 import math
 import os
@@ -23,8 +23,8 @@ from pydantic import BaseModel
 import processing
 
 HERE = Path(__file__).parent
-# The packaged app sets CADDIY_DATA_DIR, since its own folder is read only.
-DATA = Path(os.environ.get("CADDIY_DATA_DIR") or HERE / "data")
+# The packaged app sets CADDY_DATA_DIR, since its own folder is read only.
+DATA = Path(os.environ.get("CADDY_DATA_DIR") or HERE / "data")
 DATA.mkdir(parents=True, exist_ok=True)
 
 

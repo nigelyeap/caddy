@@ -76,7 +76,7 @@ public enum ModelExport {
             let p = Process()
             p.executableURL = bin
             p.arguments = [script.path]
-            p.environment = ProcessInfo.processInfo.environment.merging(["CADDIY_STL": stl.path]) { $1 }
+            p.environment = ProcessInfo.processInfo.environment.merging(["CADDY_STL": stl.path]) { $1 }
             p.standardOutput = FileHandle.nullDevice
             p.standardError = FileHandle.nullDevice
             if (try? p.run()) != nil { return true }
@@ -86,13 +86,13 @@ public enum ModelExport {
     }
 
     private static func writeFreeCADScript() throws -> URL {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("CADDIY", isDirectory: true)
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("CADDY", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("open_in_freecad.py")
         let py = """
         import os, FreeCAD, FreeCADGui
         from PySide import QtCore
-        PATH = os.environ.get("CADDIY_STL", "")
+        PATH = os.environ.get("CADDY_STL", "")
         def go():
             import Mesh, MeshGui
             FreeCADGui.activateWorkbench("MeshWorkbench")

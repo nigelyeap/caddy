@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 D = Path(tempfile.mkdtemp())
-os.environ["CADDIY_DATA_DIR"] = str(D / "data")
+os.environ["CADDY_DATA_DIR"] = str(D / "data")
 os.environ.pop("CAD_KEY_STDIN", None)
 os.environ.pop("ANTHROPIC_API_KEY", None)  # canned edits only
 sys.path.insert(0, str(Path(__file__).parent))

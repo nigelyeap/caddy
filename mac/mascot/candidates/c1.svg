@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Caddiy C1: scan-ring magnifier. 5 shapes. -->
+  <!-- Caddy C1: scan-ring magnifier. 5 shapes. -->
   <rect x="-40" y="0" width="80" height="180" rx="40" fill="#A9DDD7" transform="translate(330,330) rotate(-45)"/>
   <circle cx="215" cy="215" r="148" fill="#FFFFFF" stroke="#F6B23C" stroke-width="48"/>
   <circle cx="172" cy="200" r="24" fill="#1F7A72"/>

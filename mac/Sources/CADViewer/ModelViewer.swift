@@ -36,7 +36,7 @@ public final class ViewerController: ObservableObject {
     @Published public var snapEnabled = true
     /// Keeps turning until the kid touches the model. Off with Reduce Motion.
     @Published public var autoRotate = false { didSet { applySpin() } }
-    /// Counts turns of the model for the Caddiy tour (one per drag).
+    /// Counts turns of the model for the Caddy tour (one per drag).
     @Published public private(set) var orbitCount = 0
 
     lazy var stage = ViewerScene()

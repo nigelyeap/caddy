@@ -1,4 +1,4 @@
-# CADDIY: many objects in one build (technical plan)
+# CADDY: many objects in one build (technical plan)
 
 Scope: drag, add from a library or a new scan, smart split, join, cut by drawing a line, duplicate. Plus suggestions.
 Status: ideas only. No project files changed.
@@ -71,13 +71,13 @@ Every scene change is one call that appends one version, clears `redo`, and retu
 - Cache `SCNGeometry` by file name. A duplicate shares the geometry. Give each node its own material copy so one can be highlighted.
 - New `setScene(_ parts: [PartView], animate:)` diffs by id: add (scale-in pop), remove (fade), move (SCNTransaction), new file on same id (the existing sweep, run on that node only).
 - `radius`, `center`, `rebuildGrid()` and `fitShadow()` use the union bounds of all parts. Today they use one mesh's bounds.
-- `modelCorners` becomes all parts' corners, so `ViewerController.modelRect()` keeps working for Caddiy's overlay.
+- `modelCorners` becomes all parts' corners, so `ViewerController.modelRect()` keeps working for Caddy's overlay.
 - Selection: emission tint on the selected node's material. An outline needs a second pass and is not worth it yet.
 
 **ModelViewer.swift**
 - `ModelViewer(stlURL:revision:)` becomes `ModelViewer(parts: [PartView], selected: String?, revision:)`. `PartView` = id, local URL, transform.
 - `ViewerController.load()` keeps the cancel and failure logic. `info` and `sizeDelta` follow the selected part, or the whole build when nothing is selected.
-- `AppModel.refreshModel()` downloads only part files it has not cached (`temporaryDirectory/CADDIY/parts/<file>`). Most changes then download nothing.
+- `AppModel.refreshModel()` downloads only part files it has not cached (`temporaryDirectory/CADDY/parts/<file>`). Most changes then download nothing.
 
 **Picking and dragging in OrbitSCNView**
 - `mouseDown`: `hitTest(point, options: [.rootNode: partsRoot, .searchMode: SCNHitTestSearchMode.closest.rawValue])`. Walk up to the container to get the id.

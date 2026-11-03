@@ -44,7 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let stl = arg.map { URL(fileURLWithPath: $0) } ?? Bundle.main.url(forResource: "mug", withExtension: "stl")
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 720),
                          styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
-        w.title = "CADDIY hand playground"
+        w.title = "CADDY hand playground"
         w.contentView = NSHostingView(rootView: Playground(stl: stl).preferredColorScheme(.dark))
         w.center()
         w.makeKeyAndOrderFront(nil)

@@ -1,4 +1,4 @@
-# CADDIY design plans
+# CADDY design plans
 
 Written 2026-10-30. Each plan matches one idea in `DESIGN_IDEAS.md`. Nothing here is built yet. Costs are working days for one person who knows SwiftUI and SceneKit. They include the verification run and leave no slack for review rounds.
 
@@ -14,9 +14,9 @@ Every later plan depends on repeatable screenshots and numbers. Without this, "l
 
 - **Goal.** Produce the same window, in the same state, at the same size, in light and dark, with one command, before and after each change.
 - **Files and pieces.**
-  - `Sources/CADApp/CADApp.swift`: read `CADDIY_DEMO` (values `firstrun`, `scan`, `processing`, `edit`, `edit-applying`, `edit-changed`, `empty`) and `CADDIY_APPEARANCE` (`light`, `dark`). Demo mode uses `MockBackendAPI` (already in `Integration.swift` as `previewAPI()`) and `PreviewScanSource` (already in `CADScan/OtherSources.swift`). It sets `NSApp.appearance` and a fixed 1440×900 content size. This changes the app's own appearance only, never the system setting.
-  - `Theme.swift`: a `CADDIY_SLOWMO` multiplier on every motion token, so a 0.4 s animation can be shot at 4 s.
-  - New `scripts/shots.sh`: build debug, launch each state, find the window ID with CoreGraphics filtered to owner `CADDIY`, run `screencapture -x -o -l <id>`, and write `shots/<state>-<appearance>.png`. Never capture the full screen.
+  - `Sources/CADApp/CADApp.swift`: read `CADDY_DEMO` (values `firstrun`, `scan`, `processing`, `edit`, `edit-applying`, `edit-changed`, `empty`) and `CADDY_APPEARANCE` (`light`, `dark`). Demo mode uses `MockBackendAPI` (already in `Integration.swift` as `previewAPI()`) and `PreviewScanSource` (already in `CADScan/OtherSources.swift`). It sets `NSApp.appearance` and a fixed 1440×900 content size. This changes the app's own appearance only, never the system setting.
+  - `Theme.swift`: a `CADDY_SLOWMO` multiplier on every motion token, so a 0.4 s animation can be shot at 4 s.
+  - New `scripts/shots.sh`: build debug, launch each state, find the window ID with CoreGraphics filtered to owner `CADDY`, run `screencapture -x -o -l <id>`, and write `shots/<state>-<appearance>.png`. Never capture the full screen.
   - New `scripts/design_metrics.swift` (stdlib, AppKit and CoreGraphics only): reads PNGs and token hex values, and prints the numbers below as JSON.
   - `scripts/viewer_check.sh --pictures` already renders the SceneKit stage headless to PNG. Reuse it for every stage plan. Add a second render with the model hidden so the metric script can build a model mask by difference.
 - **Steps.** 1) Add the env reads. 2) Write `shots.sh`. 3) Write `design_metrics.swift`. 4) Capture and commit the **baseline** set from today's build to `shots/baseline/`. 5) Check that two runs of the same state differ by under 0.5% of pixels (blinking REC dot and the spinner aside, which get masked).
@@ -98,7 +98,7 @@ Every later plan depends on repeatable screenshots and numbers. Without this, "l
   4. Undo runs top to bottom. Reduce Motion skips straight to the end state with a 0.15 s crossfade.
   5. Remove `pulse()`.
   6. Add a debug hook that renders frames at t = 0, 0.15, 0.35, 0.55 and 0.7 s through `SCNRenderer.snapshot(atTime:)` into a filmstrip PNG.
-- **Screenshot check.** The filmstrip for 3 edit types (taller, add hole, cut). Also a `CADDIY_SLOWMO=10` window capture at 5 timestamps to confirm the live view matches the headless one.
+- **Screenshot check.** The filmstrip for 3 edit types (taller, add hole, cut). Also a `CADDY_SLOWMO=10` window capture at 5 timestamps to confirm the live view matches the headless one.
 - **Cost.** 2.5 days.
 - **What could go wrong.**
   - Bad normals or open scans give holes in the band, and the band looks like flicker. Test on the worst bench mesh.
@@ -199,7 +199,7 @@ Every later plan depends on repeatable screenshots and numbers. Without this, "l
   2. Replace every hard-coded duration in SwiftUI and SceneKit with a token. SceneKit gets matching `CAMediaTimingFunction` values.
   3. `StepIndicator`: three labels on a hairline, a 2 pt signal bar under the current label, moved with `matchedGeometryEffect` in a shared `@Namespace`. Done steps get a 9 pt check.
   4. Keep the accessibility label as it is today.
-- **Screenshot check.** Toolbar crop from every state shot. A `CADDIY_SLOWMO=10` capture of a step change at 5 timestamps.
+- **Screenshot check.** Toolbar crop from every state shot. A `CADDY_SLOWMO=10` capture of a step change at 5 timestamps.
 - **Cost.** 1 day.
 - **What could go wrong.** Springs that are too soft feel laggy in a pro tool. Keep `bounce: 0` and durations short. The toolbar on macOS 26 may put glass behind the rail, which Apple says status items should avoid. Set `isBordered = false` via the AppKit toolbar item if SwiftUI gives no control **(unverified in SwiftUI)**.
 - **Metric.**
@@ -261,7 +261,7 @@ Same fields, shorter. Costs assume the top 8 and Plan 0 are done.
 
 ### Icon and splash
 
-- **App icon.** Files: `Resources/make_icon.swift`, plus a 1024 px render from `ViewerScene.snapshot` of the hero object. Steps: render the object on the dark stage, composite the ring in signal colour, keep the macOS grid (824 pt body). Cost 1.5 days, of which half is choosing the object. Risk: a rendered 3D object at 16 px becomes mush. Design the 16 and 32 px sizes as simplified variants. Icon Composer layering for macOS 26 **(unverified with this script-based pipeline)**. Metric: Dock find test. Show a screenshot of a Dock with 12 icons including CADDIY at 48 px, ask "find the 3D scanning app". Pass if median time ≤ baseline and ≥ 4 of 5 find it in under 3 s. Also check the 16 px render is distinguishable from the generic document icon by a 5-person "which is the app" test.
+- **App icon.** Files: `Resources/make_icon.swift`, plus a 1024 px render from `ViewerScene.snapshot` of the hero object. Steps: render the object on the dark stage, composite the ring in signal colour, keep the macOS grid (824 pt body). Cost 1.5 days, of which half is choosing the object. Risk: a rendered 3D object at 16 px becomes mush. Design the 16 and 32 px sizes as simplified variants. Icon Composer layering for macOS 26 **(unverified with this script-based pipeline)**. Metric: Dock find test. Show a screenshot of a Dock with 12 icons including CADDY at 48 px, ask "find the 3D scanning app". Pass if median time ≤ baseline and ≥ 4 of 5 find it in under 3 s. Also check the 16 px render is distinguishable from the generic document icon by a 5-person "which is the app" test.
 - **Splash.** Files: `Screens.swift` `LaunchView`. Steps: stage gradient, wordmark, ring drawn with `trim` animation. Cost 0.5 day. Risk: start-up is usually fast, so this may show for under a second and flash. Show it only after 400 ms. Metric: no splash frame visible when start-up takes under 400 ms (checked with slow-mo capture and a fake fast helper).
 
 ### Light and dark, beyond P2

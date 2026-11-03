@@ -1,4 +1,4 @@
-"""Generates the 16 Caddiy poses as SVG, then a contact sheet. Run: uv run --with pillow python make_poses.py"""
+"""Generates the 16 Caddy poses as SVG, then a contact sheet. Run: uv run --with pillow python make_poses.py"""
 import math, subprocess, os
 from PIL import Image, ImageDraw
 T='#1F7A72'; AF='#F6B23C'; AS='#E09A20'; CR='#FFF4DC'; P='#F4A6A0'; BL='#3FA3F6'; LT='#A9DDD7'; Y='#FFD23F'; TS='#6FB9AF'

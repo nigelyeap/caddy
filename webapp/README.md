@@ -1,4 +1,4 @@
-# CADDIY web app
+# CADDY web app
 
 Scan an object with the camera, get a clean STL, then change it by typing what you want.
 

@@ -101,7 +101,7 @@ public struct HandCameraBubble: View {
 
     private var hint: String {
         switch hands.problem {
-        case .notAllowed?: return "CADDIY can't use the camera. Turn it on in System Settings, Privacy, Camera."
+        case .notAllowed?: return "CADDY can't use the camera. Turn it on in System Settings, Privacy, Camera."
         case .noCamera?: return "I can't find a camera."
         case .inUse?: return "Another app is using the camera."
         case nil: break

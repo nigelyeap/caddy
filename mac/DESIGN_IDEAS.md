@@ -1,6 +1,6 @@
-# CADDIY design ideas
+# CADDY design ideas
 
-Written 2026-10-30. This file covers look, feel, layout, motion and identity only. No features and no engineering plans. It was written from the code (`Theme.swift`, `CADApp/*`, `CADViewer/ViewerScene.swift`, `CADScan/*`, `Resources/make_icon.swift`) and `DESIGN_NOTES.md`. The CADDIY window was not open, so I took no screenshot. Nothing here was built.
+Written 2026-10-30. This file covers look, feel, layout, motion and identity only. No features and no engineering plans. It was written from the code (`Theme.swift`, `CADApp/*`, `CADViewer/ViewerScene.swift`, `CADScan/*`, `Resources/make_icon.swift`) and `DESIGN_NOTES.md`. The CADDY window was not open, so I took no screenshot. Nothing here was built.
 
 Effort: **S** is under half a day, **M** is one to three days, **L** is more. Impact is visual impact from 1 to 5.
 **(unverified)** marks an API or behaviour I could not confirm from Apple docs during this pass.
@@ -23,7 +23,7 @@ The package targets macOS 14. Anything marked "macOS 15+" or "macOS 26+" needs a
 ## Diagnosis: what still looks plain or off
 
 - **Three greys with no hierarchy.** `background` F3F3F4, `panel` FFFFFF and `viewer` ECECEE sit within a few percent of each other. In dark mode it is 1C1C1E, 242426 and 19191B. Nothing reads as in front of anything else. Every surface gets the same 1 pt `line` border, so borders do two jobs: structure and fake elevation.
-- **No identity colour.** The accent is the system accent (blue on most Macs). The app icon is teal with an amber ring. The scan overlay ring is green. Three different colour stories, and none of them belongs to CADDIY.
+- **No identity colour.** The accent is the system accent (blue on most Macs). The app icon is teal with an amber ring. The scan overlay ring is green. Three different colour stories, and none of them belongs to CADDY.
 - **The 3D view looks like a 2010 viewer.** It has a flat solid background, a slate clay with no environment reflections, uniform grid lines that stop at a hard square edge, and a floor that shows only the shadow. Pro tools (Shapr3D, Fusion, the slicers) all use a gradient or studio backdrop and some form of image-based light. This is the biggest gap, because the model is the product.
 - **The scan screen looks like a form.** The camera sits letterboxed in a black 16:9 box. Generic black 72% capsules sit over it. A flat donut sits in the corner, and a 280 pt panel repeats the tips from the first run. The moment that should feel like magic reads like a settings page.
 - **The processing screen is the dead moment.** It is a system spinner in a grey rectangle for up to a minute.
@@ -31,7 +31,7 @@ The package targets macOS 14. Anything marked "macOS 15+" or "macOS 26+" needs a
 - **Edit feedback is a blink.** The new mesh crosses over in 0.2 s, then the whole model glows accent for 0.9 s. You see that something happened, not what changed. The "Applying" state covers the whole viewer in material, so the model vanishes during the wait.
 - **Type has one register.** Almost everything is 13 pt or 12 pt. The biggest text is 20 pt. Numbers (sizes, coverage, counts) are the most interesting data in the app, yet they look like body text.
 - **The inspector is one long scroll of equal-weight blocks.** Every chip has the same weight and every section has the same header.
-- **Smaller things.** Nested radii are not concentric (8 pt card around 6 pt fields with 12 pt padding). The launch screen is a 64 pt icon and a spinner. The "CADDIY" toolbar title is plain 13 pt semibold text.
+- **Smaller things.** Nested radii are not concentric (8 pt card around 6 pt fields with 12 pt padding). The launch screen is a 64 pt icon and a spinner. The "CADDY" toolbar title is plain 13 pt semibold text.
 
 ## 1. Visual identity and palette
 
@@ -59,7 +59,7 @@ The package targets macOS 14. Anything marked "macOS 15+" or "macOS 26+" needs a
 - **Add a display register for numbers.** Coverage percent, the size readout and the processing timer use SF Pro at 28 to 34 pt, with `.fontWidth(.expanded)` (macOS 13+) and `.monospacedDigit()`. Units ("mm", "%") sit in `muted` at half size, baseline-aligned. Build with a new `TextRole.display`. Effort S. Impact 4.
 - **Dimensions in SF Mono.** "40 × 40 × 48" in SF Mono 12 medium and "mm" in muted. This looks like a CAD readout without a third-party font. Effort S. Impact 3.
 - **Quieter section headers.** Inspector headers become 11 pt semibold `muted` with `.tracking(0.3)`, like Xcode and Final Cut. Content takes the 13 pt weight. This adds hierarchy for free. Effort S. Impact 3.
-- **Wordmark.** "CADDIY" in SF Pro Expanded semibold, tracking +1, with a 6 pt signal dot or a tiny ring glyph before it. Used in the toolbar, the splash and the About box. Effort S. Impact 3.
+- **Wordmark.** "CADDY" in SF Pro Expanded semibold, tracking +1, with a 6 pt signal dot or a tiny ring glyph before it. Used in the toolbar, the splash and the About box. Effort S. Impact 3.
 - **Keep** SF Pro, sentence case and the text size multiplier. Use `.contentTransition(.numericText())` on every number that changes. It is already on the coverage ring. Add it to size, volume, triangles and the elapsed timer. Effort S. Impact 3.
 
 ## 3. The 3D viewer stage

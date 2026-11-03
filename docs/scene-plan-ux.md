@@ -1,6 +1,6 @@
-# CADDIY Arrange mode: kid-facing design plan
+# CADDY Arrange mode: kid-facing design plan
 
-Scope: UX only. Matches EditScreen, Tutorial, CaddiyLines, Builds and Theme. No code was changed.
+Scope: UX only. Matches EditScreen, Tutorial, CaddyLines, Builds and Theme. No code was changed.
 
 ## 1. The big decision: one stage, a tool strip, a Parts list
 
@@ -43,7 +43,7 @@ Main state, two parts, Move tool, cup selected:
 | | Add  |   .         gold ring    [====]          .    | Changing: Cup                 |
 | | Copy |   .                                      .    | [ Try: make it 20% taller  ]  |
 | +------+   . . . . . . . . . . . . . . . . . . . .     | Quick changes ...             |
-|                      [ view buttons ]       (Caddiy)   |                [ Save STL... ]|
+|                      [ view buttons ]       (Caddy)   |                [ Save STL... ]|
 +--------------------------------------------------------+-------------------------------+
 ```
 
@@ -68,14 +68,14 @@ Cut tool, line drawn, waiting to confirm:
 |                 \   <- dashed gold line              |
 |   [ Cut here ]  [ Try again ]  [ Turn line 90 ]      |
 +------------------------------------------------------+
-  Caddiy: "Snip! Check the colours, then tap Cut here."
+  Caddy: "Snip! Check the colours, then tap Cut here."
 ```
 
 Smart split prompt, right after Clean up finishes:
 
 ```
 +--------------------------------------------+
-|  (Caddiy, idea pose)                       |
+|  (Caddy, idea pose)                       |
 |  I found 2 things in your scan!            |
 |  I made them into 2 parts.                 |
 |      [ Keep them apart ]  [ Stick back ]   |
@@ -108,14 +108,14 @@ Add from the library
 - Scan a new thing: goes to the Scan screen with a gold banner "Scanning a new part for your build".
   Back returns to the same build. The new scan lands as a new part.
 - New parts appear in the nearest free spot on the bed, never on top of another part.
-- Caddiy: "Ta da! A new part. Drag it where you want it."
+- Caddy: "Ta da! A new part. Drag it where you want it."
 - Risk: today New scan clears the model. Scene-adding needs a separate path in AppModel.
 
 Smart splitting
 - Runs after Clean up when the mesh has two or more big separate pieces.
 - Automatic, but it shows as History row 2 "Split into 2 parts", so one Undo puts it back.
 - Tiny specks (under about 2 percent of the biggest piece) are dropped as scan noise, also undoable.
-- Caddiy line as mocked above. Names are "Part 1", "Part 2". Kids can rename with a double click.
+- Caddy line as mocked above. Names are "Part 1", "Part 2". Kids can rename with a double click.
 - Risk: scans of one object with a thin handle may break into pieces by mistake.
   The "Stick back" button covers that.
 
@@ -125,7 +125,7 @@ Join ("Stick together")
 - Joined parts move as one and show one outline and one name. "Pull apart" splits them back.
 - Under the hood this is a group, not a mesh merge. The real merge happens only on Save STL.
   That keeps Pull apart exact and cheap.
-- Caddiy: "Now they move together. Like best friends."
+- Caddy: "Now they move together. Like best friends."
 - Hint if they do not touch: "These do not touch. They will print as two pieces."
 
 Cutting
@@ -144,7 +144,7 @@ Cutting
 Duplicate ("Copy")
 - Lives: Copy button, Command D, and right click.
 - The copy appears beside the original in a free spot, with the name "Cup 2".
-- Caddiy: "Two of them! Twice the fun."
+- Caddy: "Two of them! Twice the fun."
 
 ## 4. Safety and forgiveness
 
@@ -167,10 +167,10 @@ Tour (TutorialScript.steps)
 - Keep the main tour short. Add one step after "viewerTools":
   id "toolStrip", target .toolStrip, line "These tools move, cut and add parts. Try them later!",
   pose .pointLeft, advance .next.
-- Everything else is taught by first-use hints. One bubble from StageCaddiy the first time each
+- Everything else is taught by first-use hints. One bubble from StageCaddy the first time each
   tool is picked, stored in AppStorage like seenIntro. Each hint shows once, and the Help menu can
   reset them.
-- New CaddiyMoment cases: .arrange, .split, .cut, .join, .offBed, .added. Lines stay short and plain
+- New CaddyMoment cases: .arrange, .split, .cut, .join, .offBed, .added. Lines stay short and plain
   so the existing copy test still passes.
 
 Sample lines with poses
@@ -182,7 +182,7 @@ Sample lines with poses
 - .offBed: "Oops, that part is off the bed." (.sad, then "Drag it back in. You can do it!" .cheer)
 
 Home and My builds
-- A build becomes a scene. Plan: save a "name.caddiy" folder with one STL per part, a small
+- A build becomes a scene. Plan: save a "name.caddy" folder with one STL per part, a small
   scene.json for spots, groups and names, and a merged STL for Save STL and old code paths.
 - Old plain-STL builds still open as a one-part scene. Nothing breaks.
 - My builds rows show a "3 parts" chip when a build has more than one part.
@@ -200,7 +200,7 @@ Home and My builds
 - Cut without drawing: in the Cut tool, Return places a level line through the middle of the part.
   Up and down arrows slide it. R turns it 90 degrees. Return again cuts. Esc cancels.
   The menu also offers "Cut in Half Across" and "Cut in Half Down".
-- Reduce Motion: no lift, no settle bounce, no slide apart after cut, no Caddiy hop. Parts snap.
+- Reduce Motion: no lift, no settle bounce, no slide apart after cut, no Caddy hop. Parts snap.
 - Reduce Transparency: the cut preview tints go solid.
 - Text size: strip labels follow textScale. At Extra large the strip goes icons only, with help tags.
 - Selection uses an outline plus a name tag plus the list row, never colour alone.
@@ -232,10 +232,10 @@ Scores are 1 to 5. Appeal is how much an 8 to 14 year old would care. Difficulty
 | 5 | Will it stand? | A button that tips the build if it would fall over, then shows where to add a base. | 5 | 3 |
 | 6 | Name stamp | Type a name and a raised letter plate appears as a new part. | 5 | 3 |
 | 7 | Ring of copies | Make 6 copies in a circle, for a flower, a crown or a gear. | 4 | 2 |
-| 8 | Peg and hole | Pick two parts and Caddiy adds a peg on one and a matching hole on the other. | 3 | 4 |
+| 8 | Peg and hole | Pick two parts and Caddy adds a peg on one and a matching hole on the other. | 3 | 4 |
 | 9 | Ruler | Drag between two spots and see the distance in cm and in Lego studs. | 3 | 2 |
 | 10 | Spin show | Record a short turning video or GIF of the build to show friends. | 4 | 2 |
-| 11 | Build challenges | Caddiy cards like "Make a phone stand from 3 parts", with a sticker when done. | 5 | 3 |
+| 11 | Build challenges | Caddy cards like "Make a phone stand from 3 parts", with a sticker when done. | 5 | 3 |
 | 12 | Print time | A little clock that says about how long it will print, and how much plastic. | 3 | 3 |
 
 Recommended top 4

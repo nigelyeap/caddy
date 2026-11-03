@@ -1,7 +1,7 @@
 import SwiftUI
 import CADShared
 
-// The Caddiy tour: the step table, the rules that move it on, and the state that runs it.
+// The Caddy tour: the step table, the rules that move it on, and the state that runs it.
 // Steps move on when app state changes, so menu items and keyboard shortcuts count too.
 
 enum TutorialScreen: Equatable, Sendable {
@@ -58,7 +58,7 @@ struct TutorialStep {
     let screen: TutorialScreen
     let target: TutorialTarget?
     let line: String
-    let pose: CaddiyView.Pose
+    let pose: CaddyView.Pose
     let advance: TutorialAdvance
     /// The menu or keyboard way to do the same thing.
     var hint: String? = nil
@@ -73,7 +73,7 @@ struct TutorialStep {
 enum TutorialScript {
     static let steps: [TutorialStep] = [
         TutorialStep(id: "welcome", screen: .firstRun, target: nil,
-                     line: "Hi, I am Caddiy! Want me to show you around?", pose: .hatching, advance: .next,
+                     line: "Hi, I am Caddy! Want me to show you around?", pose: .hatching, advance: .next,
                      spot: .center, nextTitle: "Yes please", skipTitle: "No thanks"),
         TutorialStep(id: "startScanning", screen: .firstRun, target: .startScanning,
                      line: "Tap Start scanning to begin.", pose: .pointRight, advance: .leaveScreen),
@@ -119,7 +119,7 @@ enum TutorialScript {
 
     /// The line and pose to show now. Extra lines replace the main one for waits and failures.
     static func say(_ step: TutorialStep, entry: TutorialSnapshot, now: TutorialSnapshot,
-                    elapsed: TimeInterval, nudge: Bool, hasHole: Bool) -> (line: String, pose: CaddiyView.Pose) {
+                    elapsed: TimeInterval, nudge: Bool, hasHole: Bool) -> (line: String, pose: CaddyView.Pose) {
         if !now.connected { return ("I lost my connection. Wait a moment.", .sleepy) }
         if step.advance == .edit {
             if now.isEditing {
@@ -227,13 +227,13 @@ final class Tutorial: ObservableObject {
     }
 
     static func harness(from env: [String: String]) -> Harness {
-        if let v = env["CADDIY_TUTORIAL"] {
+        if let v = env["CADDY_TUTORIAL"] {
             if v == "off" { return .off }
             if let i = TutorialScript.index(forHarness: v) { return .start(i) }
             return .off
         }
         // The old screenshot harness must not change, so any harness variable turns the tour off.
-        if ["CADDIY_DEMO", "CADDIY_FIRSTRUN", "CADDIY_APPLY", "CADDIY_YAW"].contains(where: { env[$0] != nil }) { return .off }
+        if ["CADDY_DEMO", "CADDY_FIRSTRUN", "CADDY_APPLY", "CADDY_YAW"].contains(where: { env[$0] != nil }) { return .off }
         return .normal
     }
 
@@ -344,7 +344,7 @@ final class Tutorial: ObservableObject {
         let overlap = BubblePlacement.overlaps(bubble, hole: hole)
         let inBounds = bounds.insetBy(dx: -0.5, dy: -0.5).contains(bubble)
         var text = "tutorial step=\(i + 1) id=\(TutorialScript.steps[i].id) hole=\(s(hole)) bubble=\(s(bubble)) bounds=\(s(bounds)) overlap=\(overlap) inBounds=\(inBounds)"
-        if !(ProcessInfo.processInfo.environment["CADDIY_TUTORIAL_DEBUG"] ?? "").isEmpty {
+        if !(ProcessInfo.processInfo.environment["CADDY_TUTORIAL_DEBUG"] ?? "").isEmpty {
             text += " rects=" + frames.rects.map { "\($0.key.rawValue):\(s($0.value))" }.sorted().joined(separator: " ")
         }
         guard text != lastLog else { return }

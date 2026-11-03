@@ -27,7 +27,7 @@ import CADShared
 
     init(dir: URL? = nil) {
         self.dir = dir ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("CADDIY/Builds", isDirectory: true)
+            .appendingPathComponent("CADDY/Builds", isDirectory: true)
         reload()
     }
 

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Caddiy B2: a cube-shaped robot cat -->
+  <!-- Caddy B2: a cube-shaped robot cat -->
   <!-- 1, 2. triangle ears (behind the head) -->
   <path d="M96 250 L112 40 L270 168 Z" fill="#F6B23C" stroke="#1F7A72" stroke-width="16" stroke-linejoin="round"/>
   <path d="M416 250 L400 40 L242 168 Z" fill="#F6B23C" stroke="#1F7A72" stroke-width="16" stroke-linejoin="round"/>

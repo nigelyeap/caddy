@@ -1,4 +1,4 @@
-# Sharing CADDIY with another Mac
+# Sharing CADDY with another Mac
 
 ## Build the package
 
@@ -7,7 +7,7 @@ cd mac
 ./build_app.sh --bundle
 ```
 
-This writes `dist/CADDIY.app`, `dist/CADDIY-<version>-arm64.zip` and `dist/CADDIY-<version>-arm64.dmg`.
+This writes `dist/CADDY.app`, `dist/CADDY-<version>-arm64.zip` and `dist/CADDY-<version>-arm64.dmg`.
 The app carries its own Python 3.12, all packages and the helper code, so the other Mac needs no uv, no Python,
 no internet and no `cad-training` folder.
 
@@ -24,21 +24,21 @@ cached in `.build-bundle/runtime` and rebuilt when `webapp/uv.lock`, `bench/uv.l
 
 macOS says the app "cannot be verified" because it is not notarized. Do this once:
 
-1. Drag `CADDIY.app` into Applications.
+1. Drag `CADDY.app` into Applications.
 2. Right-click (or Control-click) it, choose Open, then Open again in the dialog.
 
 On macOS 15 or later the dialog may only offer Done. Then open System Settings, Privacy & Security,
-scroll down and click Open Anyway next to CADDIY.
+scroll down and click Open Anyway next to CADDY.
 
 Or in Terminal:
 
 ```sh
-xattr -dr com.apple.quarantine /Applications/CADDIY.app
+xattr -dr com.apple.quarantine /Applications/CADDY.app
 ```
 
 ## Where things live on that Mac
 
-- Saved models: `~/Library/Application Support/CADDIY/data` (Settings, Show in Finder).
-- Claude key: put `ANTHROPIC_API_KEY=...` in `~/Library/Application Support/CADDIY/.env`, then reopen the app.
+- Saved models: `~/Library/Application Support/CADDY/data` (Settings, Show in Finder).
+- Claude key: put `ANTHROPIC_API_KEY=...` in `~/Library/Application Support/CADDY/.env`, then reopen the app.
   Without a key only the quick changes work.
 - Nothing is written inside the app, so its signature stays valid.

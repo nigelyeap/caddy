@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Real controls the Caddiy tour can point at. Lives here so CADScan and CADViewer controls can be tagged too.
+/// Real controls the Caddy tour can point at. Lives here so CADScan and CADViewer controls can be tagged too.
 public enum TutorialTarget: String, CaseIterable, Sendable {
     case startScanning, sampleChip, processStatus
     case viewer, viewerTools, taller, history, saveSTL, openIn
@@ -32,7 +32,7 @@ public extension EnvironmentValues {
 }
 
 public extension View {
-    /// Lets the Caddiy tour find this control. Nil does nothing.
+    /// Lets the Caddy tour find this control. Nil does nothing.
     func tutorialTarget(_ target: TutorialTarget?) -> some View { modifier(TutorialTag(target: target)) }
 }
 

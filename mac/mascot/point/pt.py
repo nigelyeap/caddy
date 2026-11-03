@@ -1,6 +1,6 @@
 import sys,math,subprocess,os
 sys.path.insert(0,'/Users/nigelyeap/Documents/cad-training/mac/mascot/poses')
-os.makedirs('/tmp/caddiy_scratch',exist_ok=True);os.chdir('/tmp/caddiy_scratch')
+os.makedirs('/tmp/caddy_scratch',exist_ok=True);os.chdir('/tmp/caddy_scratch')
 import make_poses as M
 os.chdir('/Users/nigelyeap/Documents/cad-training/mac/mascot/point')
 from PIL import Image,ImageDraw

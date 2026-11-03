@@ -1,4 +1,4 @@
-# IR turntable scanner: feasibility for CADDIY
+# IR turntable scanner: feasibility for CADDY
 
 Date: 2026-11-01. Three parallel research passes covered hardware, software and kid fit. This file merges them.
 
@@ -6,7 +6,7 @@ Source caveat: electronoobs.com returned HTTP 429 on every fetch. The build fact
 
 ## Verdict
 
-Yes, with limits. It can feed CADDIY a printable STL of small, rounded, matte objects. It cannot be a handheld scanner, and it will not capture detail finer than about 5 mm. Treat it as a "build your own scanner" STEM project. It should not be the main way kids get their model.
+Yes, with limits. It can feed CADDY a printable STL of small, rounded, matte objects. It cannot be a handheld scanner, and it will not capture detail finer than about 5 mm. Treat it as a "build your own scanner" STEM project. It should not be the main way kids get their model.
 
 ## What the build actually is
 

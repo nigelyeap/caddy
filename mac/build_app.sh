@@ -1,8 +1,8 @@
 #!/bin/zsh
-# Builds CADDIY.app from the Swift package.
+# Builds CADDY.app from the Swift package.
 # Usage: ./build_app.sh [release|debug] [--open] [--bundle]
 # --bundle puts Python, the packages and the server code inside the app, so it runs on a Mac
-# without uv or the project folder, then writes dist/CADDIY-<version>-arm64.zip and .dmg. See DISTRIBUTION.md.
+# without uv or the project folder, then writes dist/CADDY-<version>-arm64.zip and .dmg. See DISTRIBUTION.md.
 set -euo pipefail
 unset DEVELOPER_DIR
 
@@ -17,8 +17,8 @@ for a in "$@"; do
   esac
 done
 
-APP_NAME="CADDIY"
-BUNDLE_ID="com.nigel.caddiy"
+APP_NAME="CADDY"
+BUNDLE_ID="com.nigel.caddy"
 VERSION="0.1.0"
 BUILD="$(date +%Y%m%d%H%M)"
 SCRATCH="$HERE/.build-bundle"
@@ -39,7 +39,7 @@ for b in "$BIN_DIR"/*.bundle(N); do cp -R "$b" "$APP/Contents/Resources/"; done
 # Icon: render once, then cache it until make_icon.swift or the logo changes.
 ICNS_CACHE="$SCRATCH/AppIcon.icns"
 if [[ ! -f "$ICNS_CACHE" || "$HERE/Resources/make_icon.swift" -nt "$ICNS_CACHE" \
-      || "$HERE/Resources/caddiy_logo_1024.png" -nt "$ICNS_CACHE" \
+      || "$HERE/Resources/caddy_logo_1024.png" -nt "$ICNS_CACHE" \
       || "$HERE/mascot/poses_ai/logo_neutral.png" -nt "$ICNS_CACHE" \
       || "$HERE/mascot/poses_ai/logo_neutral_1024.png" -nt "$ICNS_CACHE" ]]; then
   echo "Drawing the icon..."
@@ -60,8 +60,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>CADDIY</string>
-  <key>CFBundleDisplayName</key><string>CADDIY</string>
+  <key>CFBundleName</key><string>CADDY</string>
+  <key>CFBundleDisplayName</key><string>CADDY</string>
   <key>CFBundleExecutable</key><string>$APP_NAME</string>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
   <key>CFBundlePackageType</key><string>APPL</string>
@@ -75,10 +75,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
   <key>NSPrincipalClass</key><string>NSApplication</string>
   <key>NSCameraUsageDescription</key>
-  <string>CADDIY uses the camera to see the object you want to scan. Nothing is saved until you press Start scan.</string>
+  <string>CADDY uses the camera to see the object you want to scan. Nothing is saved until you press Start scan.</string>
   <key>NSDocumentsFolderUsageDescription</key>
-  <string>CADDIY keeps its helper program and your saved models in the cad-training folder in Documents.</string>
-$( (( BUNDLE )) || echo "  <key>CADDIYProjectRoot</key><string>${HERE:h}</string>")
+  <string>CADDY keeps its helper program and your saved models in the cad-training folder in Documents.</string>
+$( (( BUNDLE )) || echo "  <key>CADDYProjectRoot</key><string>${HERE:h}</string>")
   <key>CFBundleDocumentTypes</key>
   <array>
     <dict>
@@ -152,8 +152,8 @@ echo "Signing (ad hoc, hardened runtime)..."
 # Plain ad hoc signing ties them to the binary hash, so every build would ask again.
 # No --deep: it would re-sign the bundled Python with the app's entitlements.
 codesign --force --sign - --options runtime \
-  --requirements '=designated => identifier "com.nigel.caddiy"' \
-  --entitlements "$HERE/Resources/CADDIY.entitlements" "$APP"
+  --requirements '=designated => identifier "com.nigel.caddy"' \
+  --entitlements "$HERE/Resources/CADDY.entitlements" "$APP"
 codesign --verify --deep --strict "$APP"
 
 if (( BUNDLE )); then

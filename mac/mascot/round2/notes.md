@@ -1,4 +1,4 @@
-# Caddiy round 2: soft and round
+# Caddy round 2: soft and round
 - soft1: pale pillow cube with a carry handle and a soft seam for the cube top (3D). soft2: teal dumpling with a bag-charm carry loop. soft2 is the pick, so the three expressions use its body.
 - Fixed from round 1: big eyes (about 20 percent of face width) set low and wide, each with a white sparkle. Wide U or open smile close under the eyes. Blush cheeks. No black outline, only a soft darker teal one.
 - Each file is 8 flat shapes: body, 2 eyes, 2 sparkles, 2 cheeks, 1 mouth. The handle, loop, seam and pointing arm are part of the body outline.

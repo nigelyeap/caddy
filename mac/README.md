@@ -1,4 +1,4 @@
-# CADDIY for Mac
+# CADDY for Mac
 
 A native SwiftUI app. A kid scans an object, gets a clean mesh, types a change, and saves an STL for Tinkercad or FreeCAD. The app starts the Python helper in `../webapp` as a child process and talks to it on 127.0.0.1. The API is in `../webapp/API.md`. The design spec is in `../webapp/UX_NOTES.md`.
 
@@ -6,16 +6,16 @@ A native SwiftUI app. A kid scans an object, gets a clean mesh, types a change, 
 
 ```sh
 cd mac
-./build_app.sh                 # release build, writes build/CADDIY.app
+./build_app.sh                 # release build, writes build/CADDY.app
 ./build_app.sh debug           # faster debug build
 ./build_app.sh release --open  # build, then launch it
 ```
 
 The script:
-- builds the `CADDIY` product with SwiftPM (scratch folder `.build-bundle`)
+- builds the `CADDY` product with SwiftPM (scratch folder `.build-bundle`)
 - draws the icon from `Resources/make_icon.swift` and turns it into `AppIcon.icns` (cached until that file changes)
-- writes `Info.plist`: bundle id `com.nigel.caddiy`, macOS 14 or later, the camera prompt text, and the key `CADDIYProjectRoot` set to the repo root, so the app can find `webapp/`
-- signs ad hoc with the hardened runtime and `Resources/CADDIY.entitlements` (camera, outgoing network, no App Sandbox because the app runs `uv`)
+- writes `Info.plist`: bundle id `com.nigel.caddy`, macOS 14 or later, the camera prompt text, and the key `CADDYProjectRoot` set to the repo root, so the app can find `webapp/`
+- signs ad hoc with the hardened runtime and `Resources/CADDY.entitlements` (camera, outgoing network, no App Sandbox because the app runs `uv`)
 
 The Mac needs Xcode or the command line tools, plus `uv` for the Python helper.
 
@@ -38,5 +38,5 @@ swift build --target CADApp --scratch-path .build-app
 ## Files
 
 - `Resources/make_icon.swift` draws the 1024 px icon with Core Graphics.
-- `Resources/CADDIY.entitlements` is used when signing.
+- `Resources/CADDY.entitlements` is used when signing.
 - `build/` and `.build*/` are build output. Delete them freely.

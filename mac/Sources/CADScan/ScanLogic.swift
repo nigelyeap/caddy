@@ -104,7 +104,7 @@ public enum CameraState: Equatable, Sendable {
         case .checking, .ready: return nil
         case .notDetermined:
             return Card(title: "Camera access needed",
-                        text: "CADDIY needs the camera to see your object. Nothing is filmed until you press Start scan.",
+                        text: "CADDY needs the camera to see your object. Nothing is filmed until you press Start scan.",
                         symbol: "camera", actions: [.allowCamera])
         case .denied, .restricted:
             return Card(title: "The camera is turned off",

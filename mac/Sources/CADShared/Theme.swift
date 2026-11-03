@@ -7,7 +7,7 @@ import AppKit
 // round shapes, SF Rounded type, gentle depth. Every text pair below passes 4.5:1 in light and dark.
 //
 // Colour
-//   Theme.accent, onAccent          the one accent (Caddiy goggle blue) and the text on it
+//   Theme.accent, onAccent          the one accent (Caddy goggle blue) and the text on it
 //   Theme.accentSoft, accentInk     a pale accent wash and the accent colour for text on panels
 //   Theme.good, warn, bad           status. Always pair with an icon or words, never colour alone
 //   Theme.badFill                   a red fill that keeps white text readable in dark mode too
@@ -42,7 +42,7 @@ import AppKit
 /// Design tokens. Do not rename existing tokens, other targets use them.
 public enum Theme {
     // MARK: Colour. Each token has a light and a dark value.
-    /// The one accent: a calm friendly blue taken from Caddiy's goggles. The window root sets it as the
+    /// The one accent: a calm friendly blue taken from Caddy's goggles. The window root sets it as the
     /// SwiftUI tint, so native controls match.
     public static let accent = dynamic(0x2E63CF, 0x3D6FD9)
     public static let onAccent = Color.white

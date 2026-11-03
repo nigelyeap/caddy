@@ -44,7 +44,7 @@ struct SettingsView: View {
                      ? "Students can describe their own changes."
                      : Helper.bundledRuntime == nil
                         ? "Only the quick changes work. Add ANTHROPIC_API_KEY to the .env file in the project folder, then reopen the app."
-                        : "Only the quick changes work. Add ANTHROPIC_API_KEY to a .env file in ~/Library/Application Support/CADDIY, then reopen the app.")
+                        : "Only the quick changes work. Add ANTHROPIC_API_KEY to a .env file in ~/Library/Application Support/CADDY, then reopen the app.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             Section("Helper") {
@@ -72,7 +72,7 @@ struct SettingsView: View {
 
     private var dataFolder: URL? {
         if Helper.bundledRuntime != nil { return Helper.supportFolder.appendingPathComponent("data", isDirectory: true) }
-        return CADDIYApp.projectRoot.map { $0.appendingPathComponent("webapp/data", isDirectory: true) }
+        return CADDYApp.projectRoot.map { $0.appendingPathComponent("webapp/data", isDirectory: true) }
     }
 
     private func openDataFolder() {

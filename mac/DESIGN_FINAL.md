@@ -1,4 +1,4 @@
-# CADDIY design: final ruling
+# CADDY design: final ruling
 
 Written 2026-10-30. This rules on `DESIGN_REBUTTAL.md`, the author's answer to `DESIGN_CRITIQUE.md`. No source file was edited. New test results come from the same scratchpad harness (`scratchpad/critique`, run with `SWEEP=1`) on the 49,834-triangle `bench/out/mug_heavy_clean.stl`. They are marked **[tested]**.
 
@@ -6,7 +6,7 @@ Written 2026-10-30. This rules on `DESIGN_REBUTTAL.md`, the author's answer to `
 
 ### Plan 0 harness: ACCEPTED
 
-The slim harness is right. Keeping `CADDIY_SLOWMO` is fine because P3 survives. It needs one detail the rebuttal leaves out. The SceneKit durations are literals spread through `ViewerScene.swift`, so slow motion needs one multiplier that every `SCNTransaction.animationDuration` there goes through. That is a few lines.
+The slim harness is right. Keeping `CADDY_SLOWMO` is fine because P3 survives. It needs one detail the rebuttal leaves out. The SceneKit durations are literals spread through `ViewerScene.swift`, so slow motion needs one multiplier that every `SCNTransaction.animationDuration` there goes through. That is a few lines.
 
 The `frameMs` gate on "the oldest Mac available" only means something if that Mac is older than the M4. If nobody can borrow one, the report should say "M4 only" and stop there. It should not claim the gate passed.
 
@@ -66,7 +66,7 @@ The judge is the user. After each item, send one light and dark contact sheet. *
 
 | Order | Item | Effort | Check that decides success |
 |---|---|---|---|
-| 1 | Slim harness: `CADDIY_DEMO` states, `CADDIY_APPEARANCE`, `CADDIY_SLOWMO` through one multiplier, window-only capture at a fixed size | 1 d | One command writes light and dark PNGs of every screen state. A second run differs from the first by under 0.5% of pixels per image. Worst-pixel WCAG is printed for every text block over the stage or video. |
+| 1 | Slim harness: `CADDY_DEMO` states, `CADDY_APPEARANCE`, `CADDY_SLOWMO` through one multiplier, window-only capture at a fixed size | 1 d | One command writes light and dark PNGs of every screen state. A second run differs from the first by under 0.5% of pixels per image. Worst-pixel WCAG is printed for every text block over the stage or video. |
 | 2 | P1 studio stage: environment light rotated with yaw (or a weak key light on `yawNode`), gradient backdrop, fading grid edge, stage tokens for both modes. No SSAO. Reflection off or at 0.05 or below. | 2.5 d | Mean model luminance at yaw 180° is within 15% of yaw 0°, so the back is not murky. Frame p95 is 16.7 ms or less on the oldest Mac available, labelled with that Mac's model. The user picks the new stage over the old on the sheet. |
 | 3 | P2 palette: stage tokens adopted, dark elevation by lightness steps, light mode keeps hairlines, **system accent as the only highlight**, status green kept separate | 1 d | Every text block is 4.5:1 or better at its worst pixel in both modes. Covered and missing arcs stay distinguishable in a deuteranopia simulation. The user approves the sheet. |
 | 4 | P5 first run on the stage, using one real scan the user picked from rendered stills, bundled as `CADViewer` resources. Text on a solid panel beside the stage. | 2 d + sample | The bundled STL loads from the built `.app` (not only `swift run`). At 1.4x text the column does not overlap the model. With Reduce Motion on, two frames 1 s apart are identical. The user approves the opening frame. |

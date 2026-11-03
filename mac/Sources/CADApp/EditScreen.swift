@@ -31,7 +31,7 @@ struct EditScreen: View {
                 }
             }
             .tutorialTarget(.viewer)
-            // Size top left, hands top right, tools left, Caddiy bottom right, view controls bottom centre,
+            // Size top left, hands top right, tools left, Caddy bottom right, view controls bottom centre,
             // so they never overlap.
             VStack {
                 HStack(alignment: .top) {
@@ -57,7 +57,7 @@ struct EditScreen: View {
                 }
             }
             .padding(Theme.Space.s)
-            StageCaddiy(model: model)
+            StageCaddy(model: model)
             HandPaletteView(stage: model.handStage, hands: model.hands, shown: model.canChangeParts && model.pendingCut == nil)
             StageHandCursor(hands: model.hands)
             if let since = model.editStartedAt {
@@ -85,29 +85,29 @@ struct EditScreen: View {
     }
 }
 
-/// Caddiy in the stage corner. Says something short after a change, or when clicked, then goes quiet.
+/// Caddy in the stage corner. Says something short after a change, or when clicked, then goes quiet.
 /// Steps aside whenever the model would sit under it.
-private struct StageCaddiy: View {
+private struct StageCaddy: View {
     @ObservedObject var model: AppModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.textScale) private var scale
-    @State private var saying: CaddiyLine?
-    @State private var last: CaddiyLine?
+    @State private var saying: CaddyLine?
+    @State private var last: CaddyLine?
     @State private var hop = false
     @State private var covered = false
     @State private var corner: Alignment = .bottomTrailing
 
-    private var caddiy: some View {
+    private var caddy: some View {
         Button { say(.edit) } label: {
             // The pose follows the line. A plain swap, no cross fade.
-            CaddiyView(pose: saying?.pose ?? .hello, size: 76, wave: false)
+            CaddyView(pose: saying?.pose ?? .hello, size: 76, wave: false)
                 .transaction { $0.animation = nil }
                 .offset(y: hop ? -6 : 0)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("Click Caddiy for a tip")
-        .accessibilityLabel("Caddiy")
+        .help("Click Caddy for a tip")
+        .accessibilityLabel("Caddy")
         .accessibilityHint("Says a tip")
         .allowsHitTesting(!covered)
         .accessibilityHidden(covered)
@@ -118,16 +118,16 @@ private struct StageCaddiy: View {
         let leading = corner == .bottomLeading
         GeometryReader { geo in
             HStack(alignment: corner == .topTrailing ? .top : .bottom, spacing: 4) {
-                if leading { caddiy }
+                if leading { caddy }
                 if let saying {
-                    CaddiyBubble(text: saying.text)
+                    CaddyBubble(text: saying.text)
                         .padding(corner == .topTrailing ? .top : .bottom, side * 0.55)
                         .transition(reduceMotion ? .identity
                                     : .scale(scale: 0.6, anchor: leading ? .bottomLeading : corner == .topTrailing ? .topTrailing : .bottomTrailing).combined(with: .opacity))
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
-                if !leading { caddiy }
+                if !leading { caddy }
             }
             .padding(Theme.Space.s)
             // Top right sits below the size badge row so the two never touch.
@@ -137,7 +137,7 @@ private struct StageCaddiy: View {
             .task(id: geo.size) {
                 // Cheap check twice a second: eight projected box corners.
                 // Tries bottom right, then top right, then bottom left. Hides when the model reaches all three.
-                // ponytail: checks Caddiy only, the short-lived bubble may brush the model's edge.
+                // ponytail: checks Caddy only, the short-lived bubble may brush the model's edge.
                 while !Task.isCancelled {
                     let w = geo.size.width, h = geo.size.height, bw = side + 16, bh = side + 24
                     let spots: [(Alignment, CGRect)] = [
@@ -173,8 +173,8 @@ private struct StageCaddiy: View {
         }
     }
 
-    private func say(_ moment: CaddiyMoment, announce: Bool = true) {
-        let line = CaddiyLines.pick(moment, after: last)
+    private func say(_ moment: CaddyMoment, announce: Bool = true) {
+        let line = CaddyLines.pick(moment, after: last)
         last = line
         withAnimation(Theme.spring(reduceMotion)) { saying = line }
         if announce { AccessibilityNotification.Announcement(line.text).post() }
@@ -250,10 +250,10 @@ private struct Inspector: View {
                 }
                 .themeFont(.caption).fontWeight(.semibold)
             }
-            // Caddiy only chimes in before the first change, so the panel goes quiet once the kid has started.
+            // Caddy only chimes in before the first change, so the panel goes quiet once the kid has started.
             if !hasChanges && model.draft.isEmpty {
                 HStack(alignment: .center, spacing: Theme.Space.xs) {
-                    TalkingCaddiy(moment: .edit, pose: .idea, size: 34, bubbleAlignment: .topLeading)
+                    TalkingCaddy(moment: .edit, pose: .idea, size: 34, bubbleAlignment: .topLeading)
                     Text("Tell me what to change, in your own words.")
                         .themeFont(.secondary).foregroundStyle(Theme.ink)
                         .fixedSize(horizontal: false, vertical: true)

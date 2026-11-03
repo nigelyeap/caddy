@@ -1,4 +1,4 @@
-# CADDIY design rebuttal
+# CADDY design rebuttal
 
 Written 2026-10-30. This answers `DESIGN_CRITIQUE.md` item by item. No source file was edited.
 
@@ -22,7 +22,7 @@ Tally: CONCEDE 40, REVISE 2, DEFEND 0. One sub-point inside P3 is defended with 
 
 | Item | Answer | Notes |
 |---|---|---|
-| Plan 0 harness | REVISE | Accept the slim version: demo states, appearance switch, window-only capture, fixed size, worst-pixel WCAG, `frameMs` on the oldest Mac available. Drop `design_metrics.swift` extras, `borderLines`, `motionLiterals` and all people tests. Keep `CADDIY_SLOWMO`, since P3 survives and the critique made it conditional on that. Output is one contact sheet per change for the user. 1 day. |
+| Plan 0 harness | REVISE | Accept the slim version: demo states, appearance switch, window-only capture, fixed size, worst-pixel WCAG, `frameMs` on the oldest Mac available. Drop `design_metrics.swift` extras, `borderLines`, `motionLiterals` and all people tests. Keep `CADDY_SLOWMO`, since P3 survives and the critique made it conditional on that. Output is one contact sheet per change for the user. 1 day. |
 | P1 studio stage | CONCEDE | Rotate the environment with yaw via `lightingEnvironment.contentsTransform`, or keep a weak key light on `yawNode`. Cut SSAO. Floor reflection at 0.05 or off. Tune on `mug_heavy_clean.stl`. 2.5 days. |
 | P2 palette | CONCEDE | Shoot default blue accent beside signal before committing. Default blue (hue about 211°) and 3CCFDD (about 185°) are only about 26° apart, so a clash is likely. Tint the viewer toggles with signal, or move signal greener. Keep hairlines in light mode. Use elevation steps in dark only. 1.5 days. |
 | P3 reveal sweep | REVISE | Accept both bugs and the fixes: `castsShadow` off during the sweep, a material copy per node, and a direction flag from `CADApp` into `CADViewer`. Cap at 0.6 s and remove `pulse()`. **Defended point:** keep the old mesh above the plane, opaque and not a translucent ghost. The critique's own test shows 29,636 visible pixels at u = 0, all of them shadow, so without the old mesh the model vanishes at the start of every edit. For a small edit like "add a hole" that reads as the model disappearing. An opaque old mesh with the inverse discard has no sort problem, since it is not translucent. It needs the per-node material copy the critique already requires. Two meshes cost 2.4 to 2.7 ms per frame [critique, tested]. The look itself is unverified until rendered. +0.25 day, 2.75 days. |

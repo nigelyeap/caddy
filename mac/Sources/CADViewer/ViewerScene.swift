@@ -619,7 +619,7 @@ final class ViewerScene {
     }
 
     /// Multiplies every SceneKit animation time. 1 normally. The harness sets it above 1 to slow things down.
-    static let timeScale: Double = ProcessInfo.processInfo.environment["CADDIY_SLOWMO"].flatMap(Double.init) ?? 1
+    static let timeScale: Double = ProcessInfo.processInfo.environment["CADDY_SLOWMO"].flatMap(Double.init) ?? 1
 
     private static let sweepShader = """
     #pragma arguments

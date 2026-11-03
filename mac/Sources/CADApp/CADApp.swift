@@ -3,7 +3,7 @@ import AppKit
 import CADShared
 
 @main
-struct CADDIYApp: App {
+struct CADDYApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var helper: Helper
     @StateObject private var model: AppModel
@@ -11,6 +11,7 @@ struct CADDIYApp: App {
     @AppStorage("seenIntro") private var seenIntro = false
 
     init() {
+        Helper.migrateLegacyData()
         // integer(forKey:) also reads a launch argument such as `-helperPort 8766`, which arrives as text.
         let saved = UserDefaults.standard.integer(forKey: "helperPort")
         let port = saved > 0 ? saved : 8000
@@ -37,18 +38,18 @@ struct CADDIYApp: App {
     static var projectRoot: URL? {
         if let server = Helper.bundledServer { return server }
         if let p = ProcessInfo.processInfo.environment["CAD_TRAINING_ROOT"], !p.isEmpty { return URL(fileURLWithPath: p) }
-        if let p = Bundle.main.object(forInfoDictionaryKey: "CADDIYProjectRoot") as? String, !p.isEmpty { return URL(fileURLWithPath: p) }
+        if let p = Bundle.main.object(forInfoDictionaryKey: "CADDYProjectRoot") as? String, !p.isEmpty { return URL(fileURLWithPath: p) }
         return nil
     }
 
-    /// Harness: CADDIY_TUTORIAL=<step> gets the app to that step's screen once the helper answers.
+    /// Harness: CADDY_TUTORIAL=<step> gets the app to that step's screen once the helper answers.
     @MainActor private func prepareTutorialHarness() async {
         guard let screen = Tutorial.harnessScreen(), case .start(let i) = tutorial.harness else { return }
         defer { tutorial.harnessPrepared() }
         while !model.connected { try? await Task.sleep(for: .milliseconds(300)) }
         // helperIsUp may still move to Edit for a saved model. Let it land first.
         try? await Task.sleep(for: .seconds(1.5))
-        let demo = ProcessInfo.processInfo.environment["CADDIY_DEMO"] != nil
+        let demo = ProcessInfo.processInfo.environment["CADDY_DEMO"] != nil
         switch screen {
         case .firstRun, .scan:
             seenIntro = screen == .scan
@@ -68,27 +69,27 @@ struct CADDIYApp: App {
     }
 
     var body: some Scene {
-        Window("CADDIY", id: "main") {
+        Window("CADDY", id: "main") {
             RootView(helper: helper, model: model, tutorial: tutorial)
                 .frame(minWidth: 1024, minHeight: 700)
                 .onAppear { delegate.windowAppeared() }
                 .task { await prepareTutorialHarness() }
                 .task {
                     // Harness: start from the first-run screen.
-                    if ProcessInfo.processInfo.environment["CADDIY_FIRSTRUN"] != nil {
+                    if ProcessInfo.processInfo.environment["CADDY_FIRSTRUN"] != nil {
                         try? await Task.sleep(for: .seconds(3))
                         model.newScan()
                     }
                 }
                 .task {
                     // Harness: send this edit once the demo model is showing.
-                    guard let t = ProcessInfo.processInfo.environment["CADDIY_APPLY"] else { return }
+                    guard let t = ProcessInfo.processInfo.environment["CADDY_APPLY"] else { return }
                     try? await Task.sleep(for: .seconds(16))
                     model.send(t)
                 }
                 .task {
                     // Harness: turn the model this many degrees once it has loaded.
-                    guard let d = ProcessInfo.processInfo.environment["CADDIY_YAW"].flatMap(Double.init) else { return }
+                    guard let d = ProcessInfo.processInfo.environment["CADDY_YAW"].flatMap(Double.init) else { return }
                     try? await Task.sleep(for: .seconds(14))
                     model.viewer.turn(degrees: d)
                 }
@@ -96,7 +97,7 @@ struct CADDIYApp: App {
                     if let url = n.object as? URL {
                         model.open(url)
                         // Harness runs replace whatever model the helper still holds without asking.
-                        if ProcessInfo.processInfo.environment["CADDIY_DEMO"] != nil { model.confirmPendingFile() }
+                        if ProcessInfo.processInfo.environment["CADDY_DEMO"] != nil { model.confirmPendingFile() }
                     }
                 }
         }
@@ -114,16 +115,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Opened from Finder or `open -g`, the window could stay behind other apps. Bring it forward once at launch.
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
-        // Test harness: CADDIY_APPEARANCE=light|dark, CADDIY_DEMO=<path to a mesh to open once the helper is up>.
+        // Test harness: CADDY_APPEARANCE=light|dark, CADDY_DEMO=<path to a mesh to open once the helper is up>.
         let env = ProcessInfo.processInfo.environment
-        switch env["CADDIY_APPEARANCE"] {
+        switch env["CADDY_APPEARANCE"] {
         case "light": NSApp.appearance = NSAppearance(named: .aqua)
         case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
         default: break
         }
         let tourScreen = Tutorial.harnessScreen(env)
         // A tour harness run on an early screen must not have the demo model jump it to Edit.
-        if let demo = env["CADDIY_DEMO"], !demo.isEmpty, tourScreen == nil || tourScreen == .edit {
+        if let demo = env["CADDY_DEMO"], !demo.isEmpty, tourScreen == nil || tourScreen == .edit {
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
                 NotificationCenter.default.post(name: .openFromFinder, object: URL(fileURLWithPath: demo))
             }
@@ -131,8 +132,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !Self.quiet { NSApp.activate(ignoringOtherApps: true) }
     }
 
-    /// Screenshot runs set CADDIY_BACKGROUND so the app never jumps in front of other work.
-    private static var quiet: Bool { ProcessInfo.processInfo.environment["CADDIY_BACKGROUND"] != nil }
+    /// Screenshot runs set CADDY_BACKGROUND so the app never jumps in front of other work.
+    private static var quiet: Bool { ProcessInfo.processInfo.environment["CADDY_BACKGROUND"] != nil }
     private var placedWindow = false
 
     /// SwiftUI makes the window some time after launch, later still on a slow or background launch.
@@ -157,7 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 extension Notification.Name {
-    static let openFromFinder = Notification.Name("CADDIY.openFromFinder")
+    static let openFromFinder = Notification.Name("CADDY.openFromFinder")
 }
 
 // MARK: Menus
@@ -240,7 +241,7 @@ struct AppCommands: Commands {
             Divider()
         }
         CommandGroup(replacing: .appInfo) {
-            Button("About CADDIY") { AboutWindow.show() }
+            Button("About CADDY") { AboutWindow.show() }
         }
         CommandGroup(replacing: .help) {
             Button("Show Me Around") { tutorial.startHere() }

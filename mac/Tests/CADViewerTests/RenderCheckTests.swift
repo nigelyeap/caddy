@@ -4,7 +4,7 @@ import XCTest
 import simd
 @testable import CADViewer
 
-/// Renders the stage to PNG files for a look by eye. Skipped unless CADDIY_RENDER_DIR is set.
+/// Renders the stage to PNG files for a look by eye. Skipped unless CADDY_RENDER_DIR is set.
 final class RenderCheckTests: XCTestCase {
     static func torus(major R: Float, minor r: Float, n: Int = 48, m: Int = 24) -> [ViewerSelfCheck.Tri] {
         func p(_ i: Int, _ j: Int) -> SIMD3<Float> {
@@ -88,7 +88,7 @@ final class RenderCheckTests: XCTestCase {
     }
 
     @MainActor func testRenderTagsOutlineAndRuler() throws {
-        guard let dir = ProcessInfo.processInfo.environment["CADDIY_RENDER_DIR"] else { throw XCTSkip("CADDIY_RENDER_DIR not set") }
+        guard let dir = ProcessInfo.processInfo.environment["CADDY_RENDER_DIR"] else { throw XCTSkip("CADDY_RENDER_DIR not set") }
         let out = URL(fileURLWithPath: dir)
         // One renderer per scene that draws several frames, like the live view does, so anything that
         // builds up from frame to frame or caches shader values shows here too.

@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import CADShared
 
-/// The small About panel: Caddiy, the app name, the version and one friendly line.
+/// The small About panel: Caddy, the app name, the version and one friendly line.
 struct AboutView: View {
     @AppStorage("textSize") private var textSize = TextSize.large
 
@@ -12,10 +12,10 @@ struct AboutView: View {
 
     var body: some View {
         VStack(spacing: Theme.Space.s) {
-            CaddiyView(pose: .logo, size: 96, label: "Caddiy, the CADDIY chick")
-            Text("CADDIY").themeFont(.title).foregroundStyle(Theme.ink)
+            CaddyView(pose: .logo, size: 96, label: "Caddy, the CADDY chick")
+            Text("CADDY").themeFont(.title).foregroundStyle(Theme.ink)
             Text("Version \(version)").themeFont(.secondary).foregroundStyle(Theme.muted)
-            Text("Hi, I'm Caddiy. Scan it, change it, print it.")
+            Text("Hi, I'm Caddy. Scan it, change it, print it.")
                 .themeFont(.body).foregroundStyle(Theme.ink)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -40,7 +40,7 @@ enum AboutWindow {
         let host = NSHostingController(rootView: AboutView())
         host.sizingOptions = .preferredContentSize
         let w = NSWindow(contentViewController: host)
-        w.title = "About CADDIY"
+        w.title = "About CADDY"
         w.styleMask = [.titled, .closable]
         w.isReleasedWhenClosed = false
         w.backgroundColor = NSColor(name: nil) { a in

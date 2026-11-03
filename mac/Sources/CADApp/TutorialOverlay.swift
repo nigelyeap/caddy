@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import CADShared
 
-/// The Caddiy tour on screen: a dim layer with a hole over the real control, and a speech bubble.
+/// The Caddy tour on screen: a dim layer with a hole over the real control, and a speech bubble.
 /// Clicks inside the hole reach the real control. Clicks on the dim layer get a gentle nudge.
 struct TutorialOverlay: View {
     @ObservedObject var tutorial: Tutorial
@@ -15,8 +15,8 @@ struct TutorialOverlay: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var bubbleSize = CGSize(width: 300, height: 160)
-    /// True while Caddiy asks "Leave the tour?". CADDIY_TUTORIAL_ASK=1 opens on it, for screenshots.
-    @State private var askingLeave = ProcessInfo.processInfo.environment["CADDIY_TUTORIAL_ASK"] != nil
+    /// True while Caddy asks "Leave the tour?". CADDY_TUTORIAL_ASK=1 opens on it, for screenshots.
+    @State private var askingLeave = ProcessInfo.processInfo.environment["CADDY_TUTORIAL_ASK"] != nil
 
     private var snapshot: TutorialSnapshot {
         TutorialSnapshot(
@@ -90,16 +90,16 @@ struct TutorialOverlay: View {
     }
 
     private func bubble(index i: Int, step: TutorialStep, hole: CGRect?, bubble: CGRect) -> some View {
-        // Caddiy sits on the side nearest the hole and points at it.
+        // Caddy sits on the side nearest the hole and points at it.
         let holeLeft = hole.map { $0.midX < bubble.midX } ?? false
         return TimelineView(.periodic(from: tutorial.stepStarted, by: 1)) { ctx in
             let since = step.advance == .edit ? (model.editStartedAt ?? ctx.date) : tutorial.stepStarted
             let said = TutorialScript.say(step, entry: tutorial.entry, now: snapshot,
                                           elapsed: ctx.date.timeIntervalSince(since),
                                           nudge: tutorial.nudging, hasHole: hole != nil && step.touchable)
-            let pose: CaddiyView.Pose = askingLeave ? .thinking : said.pose == .pointRight && holeLeft ? .pointLeft : said.pose
+            let pose: CaddyView.Pose = askingLeave ? .thinking : said.pose == .pointRight && holeLeft ? .pointLeft : said.pose
             HStack(alignment: .top, spacing: Theme.Space.xs) {
-                if holeLeft { caddiy(pose) }
+                if holeLeft { caddy(pose) }
                 VStack(alignment: .leading, spacing: Theme.Space.xs) {
                     progress(i)
                     Text(askingLeave ? "Leave the tour?" : said.line)
@@ -112,7 +112,7 @@ struct TutorialOverlay: View {
                     if askingLeave { leaveButtons } else { buttons(i, step) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                if !holeLeft { caddiy(pose) }
+                if !holeLeft { caddy(pose) }
             }
         }
         .padding(Theme.Space.s)
@@ -120,14 +120,14 @@ struct TutorialOverlay: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge, style: .continuous).strokeBorder(Theme.accent, lineWidth: 1.5))
         .shadow(color: Theme.shadow, radius: 12, y: 4)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Caddiy tour")
+        .accessibilityLabel("Caddy tour")
         .accessibilityAddTraits(step.advance == .next ? .isModal : [])
         .modifier(DoItAction(step: step, perform: { perform(step) }))
     }
 
-    private func caddiy(_ pose: CaddiyView.Pose) -> some View {
-        // Caddiy sits in a soft sunny circle, the same well the home screen uses.
-        CaddiyView(pose: pose, size: 44, idle: true)
+    private func caddy(_ pose: CaddyView.Pose) -> some View {
+        // Caddy sits in a soft sunny circle, the same well the home screen uses.
+        CaddyView(pose: pose, size: 44, idle: true)
             .padding(6)
             .background(Circle().fill(Theme.tintSun.fill))
             .overlay(Circle().strokeBorder(Theme.tintSun.edge, lineWidth: 1))
