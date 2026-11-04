@@ -187,3 +187,18 @@ func previewAPI() -> BackendAPI { MockBackendAPI() }
     sizeCache[key] = hi - lo
     return hi - lo
 }
+
+extension PartTool {
+    static let order: [PartTool] = [.look, .move, .cut, .turn]
+
+    /// The key that picks each tool: L look, M move, C cut, T turn.
+    static func forKey(_ key: String?) -> PartTool? {
+        switch key?.lowercased() {
+        case "l": .look
+        case "m": .move
+        case "c": .cut
+        case "t": .turn
+        default: nil
+        }
+    }
+}

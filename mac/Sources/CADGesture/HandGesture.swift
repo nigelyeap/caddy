@@ -32,6 +32,8 @@ public enum HandEvent: Equatable, Sendable {
     case pinchHeld
     /// Change in the gap between two pinching hands since the last event. Above 1 moves closer.
     case zoomed(CGFloat)
+    /// Two fingers up and swiped sideways. 1 is right on screen, -1 is left.
+    case swiped(Int)
 }
 
 /// Turns a stream of hand poses into hand states and pinch events. No camera, so tests can drive it.
@@ -52,6 +54,11 @@ public struct HandGestureRecognizer {
     public var holdTime: TimeInterval = 1.0
     /// How far a held pinch may drift from where it began, in stage fractions, and still be still.
     public var holdSlack: CGFloat = 0.03
+    /// A two-finger swipe must cover this much of the picture width within `swipeTime`, mostly sideways.
+    public var swipeDistance: CGFloat = 0.2
+    public var swipeTime: TimeInterval = 0.5
+    /// After a swipe, the next one waits this long, so one wave does not switch twice.
+    public var swipeCooldown: TimeInterval = 0.9
     /// 0 to 1 while a still pinch fills up toward a hold, else 0.
     public private(set) var holdProgress: Double = 0
 
@@ -60,6 +67,8 @@ public struct HandGestureRecognizer {
     private var last: CGPoint?
     private var lastSeen: TimeInterval?
     private var fistSince: TimeInterval?
+    private var swipePath: [(time: TimeInterval, point: CGPoint)] = []
+    private var swipedAt: TimeInterval = -.infinity
     /// Where and when the pinch began. Nil once it moved or was held.
     private var holdFrom: (point: CGPoint, time: TimeInterval)?
     /// Set after a two-hand zoom. A new pinch waits until the hand opens, so the hand still
@@ -71,7 +80,7 @@ public struct HandGestureRecognizer {
     public mutating func reset() {
         fx.reset(); fy.reset()
         pinched = false; last = nil; lastSeen = nil; fistSince = nil; waitForOpen = false
-        holdFrom = nil; holdProgress = 0
+        holdFrom = nil; holdProgress = 0; swipePath = []
     }
 
     /// Where the cursor was last frame, in stage fractions.
@@ -100,6 +109,12 @@ public struct HandGestureRecognizer {
             return (.paused(p), events)
         }
 
+        if !pinched, ratio > pinchOff, pose.isTwoFingers, let palm = pose.points[.middleMCP] {
+            if let dir = trackSwipe(palm, aspect: pose.aspect, at: time) { events.append(.swiped(dir)) }
+        } else {
+            swipePath = []
+        }
+
         if waitForOpen, ratio > pinchOff { waitForOpen = false }
         if pinched, ratio > pinchOff {
             pinched = false
@@ -125,6 +140,18 @@ public struct HandGestureRecognizer {
             }
         }
         return (pinched ? .pinched(p) : .open(p), events)
+    }
+
+    /// Keeps the last `swipeTime` of the palm and reports a quick sideways sweep: 1 right, -1 left.
+    private mutating func trackSwipe(_ palm: CGPoint, aspect: CGFloat, at time: TimeInterval) -> Int? {
+        swipePath.append((time, palm))
+        swipePath.removeAll { time - $0.time > swipeTime }
+        guard time - swipedAt >= swipeCooldown, let first = swipePath.first else { return nil }
+        let dx = (palm.x - first.point.x) * aspect, dy = palm.y - first.point.y
+        guard abs(dx) >= swipeDistance, abs(dy) < abs(dx) * 0.6 else { return nil }
+        swipedAt = time
+        swipePath = []
+        return dx > 0 ? 1 : -1
     }
 
     private mutating func lost(at time: TimeInterval) -> (HandState, [HandEvent]) {

@@ -60,6 +60,8 @@ final class HandStage: ObservableObject {
 
     func handZoomed(by factor: CGFloat) { viewer?.handZoomed(by: factor) }
 
+    func handSwiped(_ direction: Int) { model?.cycleTool(direction) }
+
     func handHeld() {
         guard let model else { return }
         Task { await model.confirmCut() }

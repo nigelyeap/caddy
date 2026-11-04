@@ -171,7 +171,9 @@ public final class ViewerController: ObservableObject {
     public func handDragged(to point: CGPoint, by fraction: CGVector) {
         guard let v = orbitView else { return }
         handPoint = Self.viewPoint(point, in: v.bounds.size)
-        v.drag(to: handPoint, by: CGVector(dx: fraction.dx * v.bounds.width, dy: fraction.dy * v.bounds.height))
+        // Holding Option on the keyboard skips the snap for a hand drag too.
+        v.drag(to: handPoint, by: CGVector(dx: fraction.dx * v.bounds.width, dy: fraction.dy * v.bounds.height),
+               noSnap: NSEvent.modifierFlags.contains(.option))
     }
 
     public func handDragEnded() { orbitView?.release(at: handPoint) }
@@ -514,7 +516,7 @@ final class OrbitSCNView: SCNView {
     override func mouseDragged(with event: NSEvent) {
         let f = event.modifierFlags
         drag(to: point(event), by: CGVector(dx: event.deltaX, dy: event.deltaY),
-             lift: f.contains(.shift), noSnap: f.contains(.command), pan: f.contains(.option))
+             lift: f.contains(.shift), noSnap: f.contains(.command) || f.contains(.option), pan: f.contains(.option))
     }
 
     // MARK: Press, drag, release. The mouse and a hand pinch both come through here.
@@ -542,6 +544,7 @@ final class OrbitSCNView: SCNView {
 
     /// `d` is how far it moved in points, right and down positive, like `NSEvent.deltaX` and `deltaY`.
     /// `lift` raises or lowers a grabbed part, `noSnap` skips lining up, `pan` slides the view.
+    /// Option means no snap while moving a part and pan otherwise. Command also skips the snap.
     func drag(to p: CGPoint, by d: CGVector, lift: Bool = false, noSnap: Bool = false, pan: Bool = false) {
         dragged = true
         if multiPart, let t = turnGrab, let stage {

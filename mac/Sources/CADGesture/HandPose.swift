@@ -51,6 +51,19 @@ public struct HandPose: Equatable, Sendable {
         return CGPoint(x: (t.x + i.x) / 2, y: (t.y + i.y) / 2)
     }
 
+    /// Index and middle fingers up and pressed together, ring and little fingers curled. The tool-switch pose.
+    /// A spread "peace" sign does not count, so the switch only happens on purpose.
+    public var isTwoFingers: Bool {
+        func reach(_ tip: HandJoint, _ knuckle: HandJoint) -> CGFloat? {
+            guard let t = distance(.wrist, tip), let k = distance(.wrist, knuckle), k > 0 else { return nil }
+            return t / k
+        }
+        guard let i = reach(.indexTip, .indexMCP), let m = reach(.middleTip, .middleMCP),
+              let r = reach(.ringTip, .ringMCP), let l = reach(.littleTip, .littleMCP) else { return false }
+        guard let gap = distance(.indexTip, .middleTip), let s = size, gap / s < 0.3 else { return false }
+        return i > 1.3 && m > 1.3 && r < 1.05 && l < 1.05
+    }
+
     /// All four fingertips curled back to the palm, no further from the wrist than their knuckles.
     public var isFist: Bool {
         let fingers: [(HandJoint, HandJoint)] = [(.indexTip, .indexMCP), (.middleTip, .middleMCP),

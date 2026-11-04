@@ -35,3 +35,13 @@ final class CaddyLinesTests: XCTestCase {
         }
     }
 }
+
+final class ToolKeyTests: XCTestCase {
+    func testLetterPicksTool() {
+        XCTAssertEqual(PartTool.forKey("m"), .move)
+        XCTAssertEqual(PartTool.forKey("M"), .move)
+        XCTAssertEqual(PartTool.forKey("t"), .turn)
+        XCTAssertNil(PartTool.forKey("x"))
+        XCTAssertNil(PartTool.forKey(nil))
+    }
+}

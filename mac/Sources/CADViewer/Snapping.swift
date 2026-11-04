@@ -20,20 +20,26 @@ enum SnapSolver {
     /// How far to nudge `moving` on each axis so an edge or centre lines up with an edge or centre of
     /// another box. Edge to opposite edge is the flush case. Nil means that axis did not snap.
     /// Each guide is a floor line from one point to another, showing what lined up.
-    static func snap(moving m: SnapBox, others: [SnapBox], threshold: Float = 3)
-        -> (dx: Float?, dy: Float?, guides: [(from: SIMD2<Float>, to: SIMD2<Float>)]) {
-        func best(_ axis: Int) -> (d: Float, target: SnapBox, at: Float)? {
+    /// `held` is the line each axis lined up with last time. It wins while still in reach, so the part
+    /// does not flick between two lines that are close together. `at` is the line picked this time.
+    static func snap(moving m: SnapBox, others: [SnapBox], threshold: Float = 3, held: (x: Float?, y: Float?) = (nil, nil))
+        -> (dx: Float?, dy: Float?, at: (x: Float?, y: Float?), guides: [(from: SIMD2<Float>, to: SIMD2<Float>)]) {
+        func best(_ axis: Int, _ keep: Float?) -> (d: Float, target: SnapBox, at: Float)? {
             var out: (d: Float, target: SnapBox, at: Float)?
             for o in others {
                 for a in m.marks(axis) {
-                    for b in o.marks(axis) where abs(b - a) <= threshold && abs(b - a) < abs(out?.d ?? .infinity) {
-                        out = (b - a, o, b)
+                    for b in o.marks(axis) where abs(b - a) <= threshold {
+                        // The held line beats any other. Otherwise the closest wins.
+                        let isHeld = b == keep, outHeld = out.map { $0.at == keep } ?? false
+                        if out == nil || (isHeld && !outHeld) || (isHeld == outHeld && abs(b - a) < abs(out!.d)) {
+                            out = (b - a, o, b)
+                        }
                     }
                 }
             }
             return out
         }
-        let bx = best(0), by = best(1)
+        let bx = best(0, held.x), by = best(1, held.y)
         let moved = SnapBox(min: m.min + SIMD2(bx?.d ?? 0, by?.d ?? 0), max: m.max + SIMD2(bx?.d ?? 0, by?.d ?? 0))
         var guides: [(from: SIMD2<Float>, to: SIMD2<Float>)] = []
         // The line runs along the other axis, from the far end of one box to the far end of the other.
@@ -43,7 +49,17 @@ enum SnapSolver {
         if let by {
             guides.append((SIMD2(Swift.min(moved.min.x, by.target.min.x), by.at), SIMD2(Swift.max(moved.max.x, by.target.max.x), by.at)))
         }
-        return (bx?.d, by?.d, guides)
+        return (bx?.d, by?.d, (bx?.at, by?.at), guides)
+    }
+
+    /// The soft pull. `d` is the full way to a line. Within `catchZone` the part goes all the way and
+    /// clicks in. Further out the pull fades to nothing at `threshold`, so the part eases in on the way
+    /// and lets go smoothly when the drag carries on. No sudden jump at either edge.
+    static func ease(_ d: Float, threshold: Float = 3, catchZone: Float = 1.5) -> Float {
+        let u = abs(d)
+        if u <= catchZone { return d }
+        if u >= threshold { return 0 }
+        return d * (threshold - u) / (threshold - catchZone)
     }
 }
 

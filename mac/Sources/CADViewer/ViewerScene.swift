@@ -368,8 +368,12 @@ final class ViewerScene {
         return SnapBox(min: lo, max: hi)
     }
 
-    /// Like `movePart`, but first lines the part up with the other parts and the bed centre lines
-    /// when it comes within 3 mm, and draws a guide line for each axis that lined up.
+    /// The lines the dragged part lined up with last move. Cleared when the guides go.
+    private var heldSnap: (x: Float?, y: Float?) = (nil, nil)
+
+    /// Like `movePart`, but gently pulls the part toward the edges and centres of the other parts and
+    /// the bed centre lines when it comes within 3 mm. It clicks fully into line within 1.5 mm.
+    /// A faint guide shows while it is pulling and a solid one once it has clicked in.
     func dragPart(_ id: String, x: Float, z: Float, snap: Bool) {
         guard snap, let node = parts[id], let box = footprint(id) else {
             showGuides([])
@@ -378,15 +382,21 @@ final class ViewerScene {
         }
         let shift = SIMD2(x - node.simdPosition.x, z - node.simdPosition.z)
         let others = parts.filter { $0.key != id && !$0.value.isHidden }.keys.compactMap(footprint) + SnapSolver.bedLines
-        let r = SnapSolver.snap(moving: SnapBox(min: box.min + shift, max: box.max + shift), others: others)
-        showGuides(r.guides)
-        movePart(id, x: x + (r.dx ?? 0), z: z + (r.dy ?? 0), exact: (r.dx != nil, r.dy != nil))
+        let r = SnapSolver.snap(moving: SnapBox(min: box.min + shift, max: box.max + shift), others: others, held: heldSnap)
+        let dx = r.dx.map { SnapSolver.ease($0) }, dz = r.dy.map { SnapSolver.ease($0) }
+        let clicked = dx == r.dx && dz == r.dy
+        showGuides(r.guides, clicked: clicked)
+        heldSnap = r.at
+        movePart(id, x: x + (dx ?? 0), z: z + (dz ?? 0), exact: (r.dx != nil, r.dy != nil))
     }
 
-    /// Thin accent lines just above the floor. An empty list clears them.
-    func showGuides(_ guides: [(from: SIMD2<Float>, to: SIMD2<Float>)]) {
+    /// Thin accent lines just above the floor. Faint until the part has clicked in.
+    /// An empty list clears them.
+    func showGuides(_ guides: [(from: SIMD2<Float>, to: SIMD2<Float>)], clicked: Bool = true) {
+        if guides.isEmpty { heldSnap = (nil, nil) }
         let pts = guides.flatMap { [SIMD3($0.from.x, 0.2, $0.from.y), SIMD3($0.to.x, 0.2, $0.to.y)] }
-        guideNode.geometry = pts.isEmpty ? nil : lines(pts, color: resolve(Theme.accent), onTop: true)
+        let color = resolve(Theme.accent).withAlphaComponent(clicked ? 1 : 0.35)
+        guideNode.geometry = pts.isEmpty ? nil : lines(pts, color: color, onTop: true)
     }
 
     /// A part's turn about the upright axis, in degrees, same sign as `PartView.yawDegrees`.

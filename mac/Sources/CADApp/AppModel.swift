@@ -250,7 +250,7 @@ final class AppModel: ObservableObject {
         } else {
             switch tool {
             case .look: ("Pinch and move to turn. Pinch a shape to add it.", "Turning! Open your hand to let go.")
-            case .move: ("Pinch a part and move to slide it.", "Moving! Open your hand to put it down.")
+            case .move: ("Pinch a part and move to slide it. Two fingers up and swipe to change tool.", "Moving! Open your hand to put it down.")
             case .turn: ("Pinch a part and move sideways to turn it.", "Turning the part! Open your hand to stop.")
             case .cut: ("Pinch and draw a line across a part.", "Drawing! Open your hand to finish the line.")
             }
@@ -548,6 +548,13 @@ final class AppModel: ObservableObject {
     func chooseTool(_ t: PartTool) async {
         if t != .look { await wrapIfNeeded() }
         tool = t
+    }
+    /// Two-finger swipe from the camera: right goes to the next tool, left to the one before.
+    func cycleTool(_ direction: Int) {
+        guard canChangeParts, pendingCut == nil else { return }
+        let all = PartTool.order
+        let i = all.firstIndex(of: tool) ?? 0
+        Task { await chooseTool(all[(i + direction + all.count) % all.count]) }
     }
     private func wrapIfNeeded() async {
         guard !hasParts, canChangeParts, await partAction(.wrap, cue: nil) else { return }

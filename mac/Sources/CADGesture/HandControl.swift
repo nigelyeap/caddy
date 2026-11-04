@@ -14,6 +14,12 @@ import SwiftUI
     func handZoomed(by factor: CGFloat)
     /// A pinch held still for a second. Only sent while `wantsHold` is on.
     func handHeld()
+    /// Two fingers swiped sideways: 1 right, -1 left. Switches tool.
+    func handSwiped(_ direction: Int)
+}
+
+extension HandDragTarget {
+    public func handSwiped(_ direction: Int) {}
 }
 
 /// Hand control for the stage: camera on and off, the current hand, and pinch drags sent to `target`.
@@ -100,6 +106,7 @@ public final class HandControl: ObservableObject {
                 target?.handDragged(to: next.point ?? .zero, by: CGVector(dx: d.dx * dragGain, dy: d.dy * dragGain))
             case .pinchEnded: target?.handDragEnded()
             case .pinchHeld: if wantsHold { target?.handHeld() }
+            case .swiped(let d): target?.handSwiped(d)
             case .zoomed(let f): target?.handZoomed(by: pow(f, zoomGain))
             }
         }

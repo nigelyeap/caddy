@@ -534,6 +534,7 @@ private struct ToolStrip: View {
     @State private var showTurn = false
     @State private var showLift = false
     @State private var showSize = false
+    @State private var keyMonitor: Any?
 
     var body: some View {
         VStack(spacing: 4) {
@@ -555,6 +556,23 @@ private struct ToolStrip: View {
         .padding(6)
         .card(padding: 0)
         .disabled(!model.canChangeParts)
+        .onAppear { startKeys() }
+        .onDisappear { if let m = keyMonitor { NSEvent.removeMonitor(m) }; keyMonitor = nil }
+    }
+
+    /// L, M, C and T pick a tool, unless a text box is being typed in or a modifier is held.
+    private func startKeys() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+                  !(NSApp.keyWindow?.firstResponder is NSText),
+                  let t = PartTool.forKey(event.charactersIgnoringModifiers) else { return event }
+            MainActor.assumeIsolated {
+                guard model.canChangeParts else { return }
+                Task { await model.chooseTool(t); if t == .turn { showTurn = true } }
+            }
+            return nil
+        }
     }
 
     private func tool(_ t: PartTool, _ title: String, _ symbol: String, _ help: String,
@@ -566,7 +584,7 @@ private struct ToolStrip: View {
             .background(on ? Theme.accentSoft : .clear, in: RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous)
                 .strokeBorder(on ? Theme.accent : .clear, lineWidth: 1.5))
-            .help(help)
+            .help("\(help) (\(title.prefix(1)) key)")
             .accessibilityAddTraits(on ? .isSelected : [])
     }
 

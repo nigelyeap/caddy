@@ -4,7 +4,7 @@ import XCTest
 
 /// A flat hand facing the camera, wrist at the bottom. `gap` is thumb tip to index tip over hand size.
 /// `fist` curls the four fingers back past their knuckles. `at` moves the whole hand.
-private func hand(gap: CGFloat = 1.0, fist: Bool = false, at c: CGPoint = CGPoint(x: 0.5, y: 0.5)) -> HandPose {
+private func hand(gap: CGFloat = 1.0, fist: Bool = false, peace: Bool = false, apart: Bool = false, at c: CGPoint = CGPoint(x: 0.5, y: 0.5)) -> HandPose {
     let s: CGFloat = 0.2   // wrist to middle knuckle, in picture heights
     var p: [HandJoint: CGPoint] = [:]
     func put(_ j: HandJoint, _ x: CGFloat, _ y: CGFloat) { p[j] = CGPoint(x: c.x + x * s, y: c.y + y * s) }
@@ -14,7 +14,10 @@ private func hand(gap: CGFloat = 1.0, fist: Bool = false, at c: CGPoint = CGPoin
                                                        (.ringMCP, .ringTip, 0.2), (.littleMCP, .littleTip, 0.4)]
     for (k, tip, x) in knuckles {
         put(k, x, -0.5)
-        put(tip, x, fist ? 0.1 : -1.2)
+        let curled = fist || (peace && (k == .ringMCP || k == .littleMCP))
+        // Together, the index tip sits right beside the middle tip. Apart is a spread peace sign.
+        let tipX = (peace && k == .indexMCP) ? (apart ? -0.7 : -0.1) : x
+        put(tip, tipX, curled ? 0.1 : -1.2)
     }
     // Thumb tip sits `gap` hand sizes left of the index tip.
     let index = p[.indexTip]!
@@ -150,6 +153,43 @@ final class HandGestureRecognizerTests: XCTestCase {
     }
 
     private func isBegan(_ e: HandEvent) -> Bool { if case .pinchBegan = e { true } else { false } }
+}
+
+final class TwoFingerSwipeTests: XCTestCase {
+    private var r = HandGestureRecognizer()
+    private var t: TimeInterval = 100
+
+    private func sweep(from: CGFloat, to: CGFloat, frames: Int, peace: Bool = true) -> [HandEvent] {
+        var all: [HandEvent] = []
+        for i in 0...frames {
+            t += 1.0 / 30
+            let x = from + (to - from) * CGFloat(i) / CGFloat(frames)
+            all += r.update(hand(peace: peace, at: CGPoint(x: x, y: 0.5)), at: t).1
+        }
+        return all
+    }
+
+    func testPeaceSignIsNotAFist() {
+        XCTAssertTrue(hand(peace: true).isTwoFingers)
+        XCTAssertFalse(hand(peace: true).isFist)
+        XCTAssertFalse(hand().isTwoFingers)
+        XCTAssertFalse(hand(peace: true, apart: true).isTwoFingers, "spread fingers must not switch tools")
+    }
+
+    func testSwipeRightAndLeft() {
+        XCTAssertEqual(sweep(from: 0.3, to: 0.6, frames: 9), [.swiped(1)])
+        t += 2
+        XCTAssertEqual(sweep(from: 0.6, to: 0.3, frames: 9), [.swiped(-1)])
+    }
+
+    func testOneWaveSwitchesOnce() {
+        XCTAssertEqual(sweep(from: 0.2, to: 0.8, frames: 18).filter { $0 == .swiped(1) }.count, 1)
+    }
+
+    func testSlowDriftAndOpenHandDoNotSwipe() {
+        XCTAssertEqual(sweep(from: 0.3, to: 0.6, frames: 60), [])
+        XCTAssertEqual(sweep(from: 0.3, to: 0.6, frames: 9, peace: false), [])
+    }
 }
 
 final class HandsRecognizerTests: XCTestCase {
