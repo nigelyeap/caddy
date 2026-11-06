@@ -250,7 +250,7 @@ final class AppModel: ObservableObject {
         } else {
             switch tool {
             case .look: ("Pinch and move to turn. Pinch a shape to add it.", "Turning! Open your hand to let go.")
-            case .move: ("Pinch a part and move to slide it. Two fingers up and swipe to change tool.", "Moving! Open your hand to put it down.")
+            case .move: ("Pinch a part and move to slide it. Pinch a tool button to switch.", "Moving! Open your hand to put it down.")
             case .turn: ("Pinch a part and move sideways to turn it.", "Turning the part! Open your hand to stop.")
             case .cut: ("Pinch and draw a line across a part.", "Drawing! Open your hand to finish the line.")
             }

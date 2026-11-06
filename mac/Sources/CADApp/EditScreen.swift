@@ -76,6 +76,7 @@ struct EditScreen: View {
                 .transition(.opacity)
             }
         }
+        .coordinateSpace(name: HandStage.space)
         .clipShape(stageShape)
         .overlay(stageShape.strokeBorder(Theme.line, lineWidth: 1))
         .padding(Theme.Space.s)
@@ -548,9 +549,9 @@ private struct ToolStrip: View {
             stripButton("Size", "arrow.up.left.and.arrow.down.right", "Make the picked part bigger or smaller") { showSize = true }
                 .popover(isPresented: $showSize, arrowEdge: .trailing) { SizePanel(model: model) }
             Divider().frame(width: 44).padding(.vertical, 2)
-            stripButton("Add", "plus.circle", "Add a ready-made shape") { model.showAddShelf = true }
+            stripButton("Add", "plus.circle", "Add a ready-made shape", pinchable: false) { model.showAddShelf = true }
                 .popover(isPresented: $model.showAddShelf, arrowEdge: .trailing) { AddShelf(model: model) }
-            stripButton("Copy", "plus.square.on.square", "Copy the picked part") { Task { await model.copySelected() } }
+            stripButton("Copy", "plus.square.on.square", "Copy the picked part", pinchable: false) { Task { await model.copySelected() } }
                 .disabled(model.hasParts && model.selectedPart == nil)
         }
         .padding(6)
@@ -584,14 +585,17 @@ private struct ToolStrip: View {
             .background(on ? Theme.accentSoft : .clear, in: RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous)
                 .strokeBorder(on ? Theme.accent : .clear, lineWidth: 1.5))
+            .handButton(title, on: model.handStage) { Task { await model.chooseTool(t); then?() } }
             .help("\(help) (\(title.prefix(1)) key)")
             .accessibilityAddTraits(on ? .isSelected : [])
     }
 
-    private func stripButton(_ title: String, _ symbol: String, _ help: String, action: @escaping () -> Void) -> some View {
+    /// `pinchable: false` keeps a button mouse-only, so a stray hand pinch cannot add or copy parts.
+    private func stripButton(_ title: String, _ symbol: String, _ help: String, pinchable: Bool = true, action: @escaping () -> Void) -> some View {
         Button(action: action) { stripLabel(title, symbol) }
             .buttonStyle(.plain)
             .foregroundStyle(Theme.ink)
+            .modifier(OptionalHandButton(title: title, stage: pinchable ? model.handStage : nil, action: action))
             .help(help)
     }
 
@@ -899,5 +903,14 @@ private struct PartsSection: View {
         .padding(.vertical, 4).padding(.horizontal, 6)
         .background(picked ? Theme.accentSoft : .clear, in: shape)
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct OptionalHandButton: ViewModifier {
+    let title: String
+    let stage: HandStage?
+    let action: () -> Void
+    func body(content: Content) -> some View {
+        if let stage { content.handButton(title, on: stage, action: action) } else { content }
     }
 }

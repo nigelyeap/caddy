@@ -121,7 +121,7 @@ struct ViewerButtons: View {
 
 struct TinkercadSheet: View {
     let stlURL: URL?
-    var body: some View { TinkercadHelp(stlURL: stlURL) }
+    var body: some View { TinkercadTabs(stlURL: stlURL) }
 }
 
 struct FreeCADSheet: View {

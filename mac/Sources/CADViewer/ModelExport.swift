@@ -48,12 +48,13 @@ public enum ModelExport {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
-    /// Asks for a folder, copies the STL into it, shows it in Finder and opens Tinkercad in the browser.
+    /// Asks for a folder, copies the STL into it, shows it in Finder and opens Tinkercad in the browser. Tinkercad opens even if the copy is cancelled.
     @discardableResult
     public static func copyForTinkercad(_ stl: URL, name: String = "My model.stl") throws -> URL? {
+        // Open the browser even when the kid cancels the folder, or the copy fails.
+        defer { NSWorkspace.shared.open(tinkercadURL) }
         guard let dest = try copyToChosenFolder(stl, name: name) else { return nil }
         revealInFinder(dest)
-        NSWorkspace.shared.open(tinkercadURL)
         return dest
     }
 

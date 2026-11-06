@@ -13,7 +13,7 @@ let package = Package(
         .target(name: "CADViewer", dependencies: ["CADShared"]),
         .target(name: "CADGesture", dependencies: ["CADShared"]),
         .executableTarget(name: "CADApp", dependencies: ["CADShared", "CADBackend", "CADScan", "CADViewer", "CADGesture"],
-                          resources: [.copy("Resources/mug.stl"), .copy("Resources/turntable_sample.txt"), .copy("Resources/Caddy")]),
+                          resources: [.copy("Resources/mug.stl"), .copy("Resources/turntable_sample.txt"), .copy("Resources/Caddy"), .copy("Resources/Bridge")]),
         .testTarget(name: "CADScanTests", dependencies: ["CADScan", "CADShared"]),
         .testTarget(name: "CADAppTests", dependencies: ["CADApp", "CADShared", "CADBackend"]),
         .testTarget(name: "CADViewerTests", dependencies: ["CADViewer"]),

@@ -51,6 +51,16 @@ public struct HandPose: Equatable, Sendable {
         return CGPoint(x: (t.x + i.x) / 2, y: (t.y + i.y) / 2)
     }
 
+    /// Numbers behind `isTwoFingers`, for the hand log: index, middle, ring, little reach, then tip gap.
+    var twoFingerDebug: String {
+        func reach(_ tip: HandJoint, _ knuckle: HandJoint) -> String {
+            guard let t = distance(.wrist, tip), let k = distance(.wrist, knuckle), k > 0 else { return "-" }
+            return String(format: "%.2f", t / k)
+        }
+        let gap = distance(.indexTip, .middleTip).flatMap { g in size.map { g / $0 } }
+        return "reach i=\(reach(.indexTip, .indexMCP)) m=\(reach(.middleTip, .middleMCP)) r=\(reach(.ringTip, .ringMCP)) l=\(reach(.littleTip, .littleMCP)) gap=\(gap.map { String(format: "%.2f", $0) } ?? "-") palmx=\(points[.middleMCP].map { String(format: "%.2f", $0.x) } ?? "-")"
+    }
+
     /// Index and middle fingers up and pressed together, ring and little fingers curled. The tool-switch pose.
     /// A spread "peace" sign does not count, so the switch only happens on purpose.
     public var isTwoFingers: Bool {
@@ -60,8 +70,8 @@ public struct HandPose: Equatable, Sendable {
         }
         guard let i = reach(.indexTip, .indexMCP), let m = reach(.middleTip, .middleMCP),
               let r = reach(.ringTip, .ringMCP), let l = reach(.littleTip, .littleMCP) else { return false }
-        guard let gap = distance(.indexTip, .middleTip), let s = size, gap / s < 0.3 else { return false }
-        return i > 1.3 && m > 1.3 && r < 1.05 && l < 1.05
+        guard let gap = distance(.indexTip, .middleTip), let s = size, gap / s < 0.36 else { return false }
+        return i > 1.3 && m > 1.3 && r < 1.25 && l < 1.25
     }
 
     /// All four fingertips curled back to the palm, no further from the wrist than their knuckles.

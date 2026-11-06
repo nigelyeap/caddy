@@ -51,6 +51,13 @@ public final class HandControl: ObservableObject {
     /// Above 1 zooms more than the hands' gap changes. Hands only spread so far.
     public var zoomGain: CGFloat = 1.5
 
+    /// Set CADDY_HANDLOG to a file path to log what the camera sees for the two-finger pose, one line per frame.
+    private static let logHandle: FileHandle? = {
+        guard let path = ProcessInfo.processInfo.environment["CADDY_HANDLOG"] else { return nil }
+        FileManager.default.createFile(atPath: path, contents: nil)
+        return FileHandle(forWritingAtPath: path)
+    }()
+
     private let tracker = HandTracker()
     private var recognizer = HandsRecognizer()
 
@@ -93,6 +100,9 @@ public final class HandControl: ObservableObject {
 
     private func receive(_ poses: [HandPose], at time: TimeInterval) {
         guard enabled else { return }
+        if let log = Self.logHandle, let p = poses.first {
+            log.write(Data(String(format: "%.2f two=%d %@\n", time, p.isTwoFingers ? 1 : 0, p.twoFingerDebug).utf8))
+        }
         self.poses = poses
         let (next, events, other) = recognizer.update(poses, at: time)
         if next != state { state = next }

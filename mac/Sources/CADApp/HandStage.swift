@@ -30,6 +30,14 @@ enum HandPalette {
 final class HandStage: ObservableObject {
     struct Carry: Equatable { var shape: String; var point: CGPoint }
 
+    /// The coordinate space the stage's overlay views share. Buttons report their frames in it.
+    static let space = "handStage"
+
+    /// Tool-strip buttons a pinch can press: where each one is on the stage, and what it does.
+    var buttons: [String: (frame: CGRect, action: () -> Void)] = [:]
+    /// A pinch that began on a button. It ends with the pinch, and nothing else moves meanwhile.
+    private var pressedButton = false
+
     weak var model: AppModel?
     @Published private(set) var carrying: Carry?
     /// The stage size in points and whether the palette shows. The palette view keeps these current.
@@ -39,6 +47,12 @@ final class HandStage: ObservableObject {
     private var viewer: ViewerControl? { model?.viewer }
 
     func handDragBegan(at p: CGPoint) {
+        let spot = CGPoint(x: p.x * size.width, y: p.y * size.height)
+        if let model, model.canChangeParts, let b = buttons.values.first(where: { $0.frame.insetBy(dx: -6, dy: -4).contains(spot) }) {
+            pressedButton = true
+            b.action()
+            return
+        }
         if paletteShown, let s = HandPalette.shape(at: p, in: size) {
             carrying = Carry(shape: s, point: p)
         } else {
@@ -47,10 +61,12 @@ final class HandStage: ObservableObject {
     }
 
     func handDragged(to p: CGPoint, by fraction: CGVector) {
+        if pressedButton { return }
         if carrying != nil { carrying?.point = p } else { viewer?.handDragged(to: p, by: fraction) }
     }
 
     func handDragEnded() {
+        if pressedButton { pressedButton = false; return }
         guard let c = carrying else { viewer?.handDragEnded(); return }
         carrying = nil
         // Let go back over the palette: nothing added.
@@ -107,5 +123,14 @@ struct HandPaletteView: View {
             .background(Theme.tintAdd.fill, in: RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous)
                 .strokeBorder(lit ? Theme.gold : Theme.tintAdd.edge, lineWidth: lit ? 3 : 1))
+    }
+}
+
+extension View {
+    /// Lets a hand pinch press this button. Reports its place on the stage to `stage`.
+    func handButton(_ id: String, on stage: HandStage, action: @escaping () -> Void) -> some View {
+        onGeometryChange(for: CGRect.self) { $0.frame(in: .named(HandStage.space)) } action: { frame in
+            stage.buttons[id] = (frame, action)
+        }
     }
 }

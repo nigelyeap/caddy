@@ -108,7 +108,9 @@ public struct HandCameraBubble: View {
         }
         switch hands.state {
         case .noHand: return "Hold up your hand so I can see it."
-        case .open: return hands.hints.open
+        case .open:
+            if hands.poses.first?.isTwoFingers == true { return "Two fingers ready. Swipe sideways to change tool." }
+            return hands.hints.open
         case .pinched: return hands.holdProgress > 0 ? "Hold still..." : hands.hints.pinched
         case .paused: return "Paused. Open your hand to go on."
         case .zooming: return "Zooming! Hands apart to come closer, together to back away."

@@ -69,6 +69,9 @@ public struct HandGestureRecognizer {
     private var fistSince: TimeInterval?
     private var swipePath: [(time: TimeInterval, point: CGPoint)] = []
     private var swipedAt: TimeInterval = -.infinity
+    private var swipeSeen: TimeInterval = -.infinity
+    /// A real hand drops out of the pose for a frame or two while it moves. The sweep survives this long gap.
+    private let swipeDropout: TimeInterval = 0.3
     /// Where and when the pinch began. Nil once it moved or was held.
     private var holdFrom: (point: CGPoint, time: TimeInterval)?
     /// Set after a two-hand zoom. A new pinch waits until the hand opens, so the hand still
@@ -111,7 +114,7 @@ public struct HandGestureRecognizer {
 
         if !pinched, ratio > pinchOff, pose.isTwoFingers, let palm = pose.points[.middleMCP] {
             if let dir = trackSwipe(palm, aspect: pose.aspect, at: time) { events.append(.swiped(dir)) }
-        } else {
+        } else if time - swipeSeen > swipeDropout {
             swipePath = []
         }
 
@@ -144,6 +147,7 @@ public struct HandGestureRecognizer {
 
     /// Keeps the last `swipeTime` of the palm and reports a quick sideways sweep: 1 right, -1 left.
     private mutating func trackSwipe(_ palm: CGPoint, aspect: CGFloat, at time: TimeInterval) -> Int? {
+        swipeSeen = time
         swipePath.append((time, palm))
         swipePath.removeAll { time - $0.time > swipeTime }
         guard time - swipedAt >= swipeCooldown, let first = swipePath.first else { return nil }

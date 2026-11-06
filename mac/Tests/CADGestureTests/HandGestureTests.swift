@@ -182,6 +182,18 @@ final class TwoFingerSwipeTests: XCTestCase {
         XCTAssertEqual(sweep(from: 0.6, to: 0.3, frames: 9), [.swiped(-1)])
     }
 
+    func testSwipeSurvivesBriefDropouts() {
+        var all: [HandEvent] = []
+        for i in 0...12 {
+            t += 1.0 / 30
+            let x = 0.3 + 0.3 * CGFloat(i) / 12
+            // Every third frame the pose slips, like a real hand in motion.
+            let pose = hand(peace: i % 3 != 2, at: CGPoint(x: x, y: 0.5))
+            all += r.update(pose, at: t).1
+        }
+        XCTAssertEqual(all, [.swiped(1)])
+    }
+
     func testOneWaveSwitchesOnce() {
         XCTAssertEqual(sweep(from: 0.2, to: 0.8, frames: 18).filter { $0 == .swiped(1) }.count, 1)
     }
